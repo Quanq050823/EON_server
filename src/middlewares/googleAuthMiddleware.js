@@ -1,7 +1,7 @@
 import GoogleStrategy from "passport-google-oauth20";
 import config from "../config/environment.js";
 import passport from "passport";
-import User from "../models/user.js";
+import User from "../models/User.js";
 
 // Check if Google OAuth is configured
 if (config.googleAuthConfig.clientId && config.googleAuthConfig.clientSecret) {
@@ -29,10 +29,10 @@ if (config.googleAuthConfig.clientId && config.googleAuthConfig.clientSecret) {
 						}
 					} else {
 						// Generate a unique username based on email or profile info
-						const baseUsername = profile.emails[0].value.split('@')[0];
+						const baseUsername = profile.emails[0].value.split("@")[0];
 						let username = baseUsername;
 						let counter = 1;
-						
+
 						// Check if username already exists and increment if needed
 						while (await User.findOne({ username: username })) {
 							username = `${baseUsername}${counter}`;

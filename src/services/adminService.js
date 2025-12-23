@@ -1,6 +1,6 @@
 "use strict";
 
-import User from "../models/user.js";
+import User from "../models/User.js";
 import BusinessOwner from "../models/BusinessOwner.js";
 import Accountant from "../models/Accountant.js";
 import OutputInvoice from "../models/OutputInvoice.js";
