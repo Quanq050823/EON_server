@@ -14,6 +14,7 @@ const create = async (req, res, next) => {
 	}
 };
 
+
 const getByUserId = async (req, res, next) => {
 	try {
 		const userId = req.params.userId || req.user.userId;
