@@ -15,7 +15,17 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            # 1. Load NVM và môi trường Node.js
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            
+            # 2. Di chuyển vào thư mục dự án
             cd /home/ubuntu/EON_server
+            
+            # 3. Cập nhật code và cài đặt library
             git pull origin main
             npm install
-            pm2 restart all 
+            
+            # 4. Khởi động lại ứng dụng với PM2
+            # Lệnh này sẽ thử restart, nếu app chưa tồn tại thì sẽ khởi tạo mới (file chạy là app.js hoặc index.js)
+            pm2 restart all || pm2 start app.js --name "eon-server"
