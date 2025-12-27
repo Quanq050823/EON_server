@@ -29,8 +29,8 @@ const START_SERVER = () => {
 	app.use(express.json({ extended: true }));
 	app.use(
 		cors({
-			origin: "*",
-			// origin: `${config.feUrl}`,
+			origin: true,
+			credentials: true,
 		})
 	);
 	app.use(express.urlencoded({ extended: true }));
