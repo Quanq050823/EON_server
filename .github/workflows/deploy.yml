@@ -2,7 +2,7 @@ name: Deploy Node.js to EC2
 
 on:
   push:
-    branches: [ main ] 
+    branches: [main]
 
 jobs:
   deploy:
@@ -17,11 +17,10 @@ jobs:
           script: |
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-            
+
             cd /home/ubuntu/EON_server
-            
+
             git pull origin main
             npm install
-            
-            # Dựa trên package.json của bạn: script start chạy 'node src/app.js'
+
             pm2 restart eon-server --update-env || pm2 start src/app.js --name "eon-server"
