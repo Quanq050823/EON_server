@@ -32,6 +32,7 @@ const BusinessOwnerSchema = mongoose.Schema(
 			default: "active",
 		},
 		taxType: { type: String },
+		password: { type: String },
 		tax_filing_frequency: {
 			type: Number,
 		},

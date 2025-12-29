@@ -157,7 +157,18 @@ const syncInvoicesFromThirdParty = async (userId, datefrom, dateto) => {
 
 const syncListInvoicesDetailsFromThirdParty = async (userId) => {
 	const owner = await getBusinessOwnerByUserId(userId);
-
+	try {
+		await axios.post(
+			`${API_BASE_URL}/login_tct_client`,
+			{ username: owner.taxCode, password: owner.password },
+			{
+				headers: {
+					Authorization: `Bearer ${THIRD_PARTY_TOKEN}`,
+					"Content-Type": "application/json",
+				},
+			}
+		);
+	} catch (error) {}
 	const latestInvoice = await InvoicesIn.findOne({ ownerId: owner._id })
 		.sort({ ncnhat: -1 })
 		.select("ncnhat");
