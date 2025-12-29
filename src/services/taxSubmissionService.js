@@ -55,14 +55,85 @@ const updateTaxSubmission = async (id, data, businessOwnerId) => {
 	return item;
 };
 
-const deleteTaxSubmission = async (id, businessOwnerId) => {
-	const item = await TaxSubmission.findOneAndDelete({
-		_id: id,
-		businessOwnerId,
-	});
-	if (!item)
-		throw new ApiError(StatusCodes.NOT_FOUND, "Tax submission not found");
-	return item;
+const getTaxSummaryByPeriod = async (
+	businessOwnerId,
+	periodType = "month",
+	year,
+	period
+) => {
+	const currentYear = year || new Date().getFullYear();
+	const matchQuery = { businessOwnerId };
+	if (year) {
+		matchQuery.date = {
+			$gte: new Date(`${year}-01-01`),
+			$lte: new Date(`${year}-12-31T23:59:59`),
+		};
+	}
+
+	const pipeline = [
+		{ $match: matchQuery },
+		{
+			$addFields: {
+				year: { $year: "$date" },
+				month: { $month: "$date" },
+				quarter: {
+					$ceil: { $divide: [{ $month: "$date" }, 3] },
+				},
+			},
+		},
+	];
+
+	if (period) {
+		if (periodType === "month") {
+			pipeline.push({ $match: { month: period } });
+		} else if (periodType === "quarter") {
+			pipeline.push({ $match: { quarter: period } });
+		}
+	}
+
+	if (periodType === "month") {
+		pipeline.push({
+			$group: {
+				_id: { year: "$year", month: "$month" },
+				totalAmount: { $sum: "$amount" },
+				count: { $sum: 1 },
+				submissions: { $push: "$$ROOT" },
+			},
+		});
+		pipeline.push({
+			$sort: { "_id.year": -1, "_id.month": -1 },
+		});
+	} else if (periodType === "quarter") {
+		pipeline.push({
+			$group: {
+				_id: { year: "$year", quarter: "$quarter" },
+				totalAmount: { $sum: "$amount" },
+				count: { $sum: 1 },
+				submissions: { $push: "$$ROOT" },
+			},
+		});
+		pipeline.push({
+			$sort: { "_id.year": -1, "_id.quarter": -1 },
+		});
+	} else {
+		pipeline.push({
+			$group: {
+				_id: null,
+				totalAmount: { $sum: "$amount" },
+				count: { $sum: 1 },
+				submissions: { $push: "$$ROOT" },
+			},
+		});
+	}
+
+	const results = await TaxSubmission.aggregate(pipeline);
+
+	return {
+		periodType,
+		year: currentYear,
+		period,
+		data: results,
+	};
 };
 
 export {
@@ -71,4 +142,5 @@ export {
 	getTaxSubmissionById,
 	updateTaxSubmission,
 	deleteTaxSubmission,
+	getTaxSummaryByPeriod,
 };

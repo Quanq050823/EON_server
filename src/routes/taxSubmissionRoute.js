@@ -19,6 +19,13 @@ router.get(
 );
 
 router.get(
+	"/summary",
+	authenticate,
+	authorization(["user", "admin"]),
+	taxSubmissionController.getTaxSummaryByPeriod
+);
+
+router.get(
 	"/:id",
 	authenticate,
 	authorization(["user", "admin"]),

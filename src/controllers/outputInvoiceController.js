@@ -77,13 +77,45 @@ const getTotalTaxes = async (req, res, next) => {
 		}
 
 		const filter = {};
-		if (req.query.startDate || req.query.endDate) {
-			filter.createdAt = {};
-			if (req.query.startDate) {
-				filter.createdAt.$gte = new Date(req.query.startDate);
+
+		const { periodType, year, period, startDate, endDate } = req.query;
+
+		if (periodType && year) {
+			const yearNum = parseInt(year);
+			let startMonth, endMonth;
+
+			if (periodType === "month" && period) {
+				const monthNum = parseInt(period);
+				startMonth = monthNum;
+				endMonth = monthNum;
+			} else if (periodType === "quarter" && period) {
+				const quarterNum = parseInt(period);
+				startMonth = (quarterNum - 1) * 3 + 1;
+				endMonth = quarterNum * 3;
+			} else if (periodType === "all") {
+				startMonth = 1;
+				endMonth = 12;
+			} else if (periodType === "month") {
+				startMonth = 1;
+				endMonth = 12;
+			} else if (periodType === "quarter") {
+				startMonth = 1;
+				endMonth = 12;
 			}
-			if (req.query.endDate) {
-				filter.createdAt.$lte = new Date(req.query.endDate);
+
+			if (startMonth && endMonth) {
+				filter.createdAt = {
+					$gte: new Date(yearNum, startMonth - 1, 1),
+					$lte: new Date(yearNum, endMonth, 0, 23, 59, 59, 999),
+				};
+			}
+		} else if (startDate || endDate) {
+			filter.createdAt = {};
+			if (startDate) {
+				filter.createdAt.$gte = new Date(startDate);
+			}
+			if (endDate) {
+				filter.createdAt.$lte = new Date(endDate);
 			}
 		}
 
