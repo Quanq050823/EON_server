@@ -141,6 +141,5 @@ export {
 	listTaxSubmissions,
 	getTaxSubmissionById,
 	updateTaxSubmission,
-	deleteTaxSubmission,
 	getTaxSummaryByPeriod,
 };

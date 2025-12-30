@@ -88,25 +88,6 @@ const update = async (req, res, next) => {
 	}
 };
 
-const remove = async (req, res, next) => {
-	try {
-		const userId = req.user.userId;
-		const owner = await getBusinessOwnerByUserId(userId);
-		if (!owner) {
-			return res
-				.status(StatusCodes.NOT_FOUND)
-				.json({ message: "Business owner profile not found" });
-		}
-		const result = await taxService.deleteTaxSubmission(
-			req.params.id,
-			owner._id
-		);
-		res.status(StatusCodes.OK).json(result);
-	} catch (err) {
-		next(err);
-	}
-};
-
 const getTaxSummaryByPeriod = async (req, res, next) => {
 	try {
 		const userId = req.user.userId;
