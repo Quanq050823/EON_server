@@ -1,4 +1,6 @@
 import TaxSubmission from "../models/TaxSubmission.js";
+import ApiError from "../utils/ApiError.js";
+import { StatusCodes } from "http-status-codes";
 
 const createTaxSubmission = async (data, businessOwnerId) => {
 	const item = new TaxSubmission({ ...data, businessOwnerId });
@@ -136,10 +138,18 @@ const getTaxSummaryByPeriod = async (
 	};
 };
 
+const deleteTaxSubmission = async (id, businessOwnerId) => {
+	const item = await TaxSubmission.findOneAndDelete({ _id: id, businessOwnerId });
+	if (!item)
+		throw new ApiError(StatusCodes.NOT_FOUND, "Tax submission not found");
+	return { message: "Tax submission deleted successfully" };
+};
+
 export {
 	createTaxSubmission,
 	listTaxSubmissions,
 	getTaxSubmissionById,
 	updateTaxSubmission,
 	getTaxSummaryByPeriod,
+	deleteTaxSubmission,
 };
