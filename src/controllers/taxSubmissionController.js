@@ -116,6 +116,5 @@ export {
 	getAllByOwner,
 	getById,
 	update,
-	remove,
 	getTaxSummaryByPeriod,
 };
