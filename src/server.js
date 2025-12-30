@@ -12,8 +12,6 @@ import session from "express-session";
 import passport from "passport";
 
 const START_SERVER = () => {
-	process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0;
-
 	const app = express();
 
 	app.use(cookieParser());
