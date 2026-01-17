@@ -161,6 +161,97 @@ const getInvoiceStats = async (req, res, next) => {
 	}
 };
 
+// Invoice Management
+const getInvoicesInByBusinessOwner = async (req, res, next) => {
+	try {
+		const { ownerId } = req.params;
+		const { page, limit, sortBy, sortOrder, search, status } = req.query;
+		const options = {
+			page: parseInt(page) || 1,
+			limit: parseInt(limit) || 10,
+			sortBy: sortBy || "tdlap",
+			sortOrder: parseInt(sortOrder) || -1,
+			search: search || "",
+			status: status || "",
+		};
+		const result = await adminService.getInvoicesInByBusinessOwner(
+			ownerId,
+			options
+		);
+		res.status(StatusCodes.OK).json(result);
+	} catch (err) {
+		next(err);
+	}
+};
+
+const getOutputInvoicesByBusinessOwner = async (req, res, next) => {
+	try {
+		const { ownerId } = req.params;
+		const { page, limit, sortBy, sortOrder, search, status } = req.query;
+		const options = {
+			page: parseInt(page) || 1,
+			limit: parseInt(limit) || 10,
+			sortBy: sortBy || "tdlap",
+			sortOrder: parseInt(sortOrder) || -1,
+			search: search || "",
+			status: status || "",
+		};
+		const result = await adminService.getOutputInvoicesByBusinessOwner(
+			ownerId,
+			options
+		);
+		res.status(StatusCodes.OK).json(result);
+	} catch (err) {
+		next(err);
+	}
+};
+
+const getStorageItemsByBusinessOwner = async (req, res, next) => {
+	try {
+		const { ownerId } = req.params;
+		const { page, limit, sortBy, sortOrder, search, category } = req.query;
+		const options = {
+			page: parseInt(page) || 1,
+			limit: parseInt(limit) || 10,
+			sortBy: sortBy || "createdAt",
+			sortOrder: parseInt(sortOrder) || -1,
+			search: search || "",
+			category: category || "",
+		};
+		const result = await adminService.getStorageItemsByBusinessOwner(
+			ownerId,
+			options
+		);
+		res.status(StatusCodes.OK).json(result);
+	} catch (err) {
+		next(err);
+	}
+};
+
+const getProductsByBusinessOwner = async (req, res, next) => {
+	try {
+		const { ownerId } = req.params;
+		const { page, limit, sortBy, sortOrder, search, category, isActive } =
+			req.query;
+		const options = {
+			page: parseInt(page) || 1,
+			limit: parseInt(limit) || 10,
+			sortBy: sortBy || "createdAt",
+			sortOrder: parseInt(sortOrder) || -1,
+			search: search || "",
+			category: category || "",
+			isActive: isActive || "",
+		};
+		const result = await adminService.getProductsByBusinessOwner(
+			ownerId,
+			options
+		);
+		res.status(StatusCodes.OK).json(result);
+	} catch (err) {
+		next(err);
+	}
+};
+
 export {
 	// User Management
 	getAllUsers,
@@ -179,4 +270,11 @@ export {
 	getSystemStats,
 	getUserStats,
 	getInvoiceStats,
+	// Invoice Management
+	getInvoicesInByBusinessOwner,
+	getOutputInvoicesByBusinessOwner,
+	// Storage Management
+	getStorageItemsByBusinessOwner,
+	// Product Management
+	getProductsByBusinessOwner,
 };

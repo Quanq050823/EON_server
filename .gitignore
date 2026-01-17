@@ -1,0 +1,12 @@
+# Editor settings
+.vscode/
+
+# Environment files
+.env
+*/.env
+*/venv
+
+# Node.js
+node_modules/
+*/node_modules/
+*/build
