@@ -44,7 +44,7 @@ const UserSchema = mongoose.Schema(
 		refreshToken: [String],
 		isVerified: {
 			type: Boolean,
-			default: false,
+			default: true,
 		},
 		otp: {
 			code: String,
@@ -57,7 +57,7 @@ const UserSchema = mongoose.Schema(
 			default: 0,
 		},
 	},
-	{ Timestamp: true }
+	{ Timestamp: true },
 );
 
 const User = mongoose.models.User || mongoose.model("User", UserSchema);
