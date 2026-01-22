@@ -22,6 +22,22 @@ router.patch("/users/:userId/role", adminController.updateUserRole);
 // Business Owner Management Routes
 router.get("/business-owners", adminController.getAllBusinessOwners);
 router.get("/business-owners/:ownerId", adminController.getBusinessOwnerById);
+router.get(
+	"/business-owners/:ownerId/invoices-in",
+	adminController.getInvoicesInByBusinessOwner
+);
+router.get(
+	"/business-owners/:ownerId/output-invoices",
+	adminController.getOutputInvoicesByBusinessOwner
+);
+router.get(
+	"/business-owners/:ownerId/storage-items",
+	adminController.getStorageItemsByBusinessOwner
+);
+router.get(
+	"/business-owners/:ownerId/products",
+	adminController.getProductsByBusinessOwner
+);
 
 // Accountant Management Routes
 router.get("/accountants", adminController.getAllAccountants);

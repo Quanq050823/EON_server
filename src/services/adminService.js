@@ -5,6 +5,7 @@ import BusinessOwner from "../models/BusinessOwner.js";
 import Accountant from "../models/Accountant.js";
 import OutputInvoice from "../models/OutputInvoice.js";
 import InvoicesIn from "../models/InvoicesIn.js";
+import StorageItem from "../models/StorageItem.js";
 import Employee from "../models/Employee.js";
 import Product from "../models/Product.js";
 import Customer from "../models/Customer.js";
@@ -366,6 +367,213 @@ const getInvoiceStats = async (startDate, endDate) => {
 	};
 };
 
+// Invoice Management
+const getInvoicesInByBusinessOwner = async (ownerId, options = {}) => {
+	const {
+		page = 1,
+		limit = 10,
+		sortBy = "tdlap",
+		sortOrder = -1,
+		search = "",
+		status = "",
+	} = options;
+	const skip = (page - 1) * limit;
+
+	// Verify business owner exists
+	const owner = await BusinessOwner.findById(ownerId);
+	if (!owner) {
+		throw new ApiError(StatusCodes.NOT_FOUND, "Business owner not found");
+	}
+
+	// Build query
+	const query = { ownerId };
+	if (search) {
+		query.$or = [
+			{ khmshdon: { $regex: search, $options: "i" } },
+			{ khhdon: { $regex: search, $options: "i" } },
+			{ nbmst: { $regex: search, $options: "i" } },
+		];
+	}
+	if (status) {
+		query.ttxly = status;
+	}
+
+	const [results, total] = await Promise.all([
+		InvoicesIn.find(query)
+			.sort({ [sortBy]: sortOrder })
+			.skip(skip)
+			.limit(limit)
+			.lean(),
+		InvoicesIn.countDocuments(query),
+	]);
+
+	return {
+		success: true,
+		data: results,
+		pagination: {
+			page,
+			limit,
+			total,
+			pages: Math.ceil(total / limit),
+		},
+	};
+};
+
+const getOutputInvoicesByBusinessOwner = async (ownerId, options = {}) => {
+	const {
+		page = 1,
+		limit = 10,
+		sortBy = "tdlap",
+		sortOrder = -1,
+		search = "",
+		status = "",
+	} = options;
+	const skip = (page - 1) * limit;
+
+	// Verify business owner exists
+	const owner = await BusinessOwner.findById(ownerId);
+	if (!owner) {
+		throw new ApiError(StatusCodes.NOT_FOUND, "Business owner not found");
+	}
+
+	// Build query
+	const query = { businessOwnerId: ownerId };
+	if (search) {
+		query.$or = [
+			{ khmshdon: { $regex: search, $options: "i" } },
+			{ khhdon: { $regex: search, $options: "i" } },
+			{ nbmst: { $regex: search, $options: "i" } },
+		];
+	}
+	if (status) {
+		query.ttxly = status;
+	}
+
+	const [results, total] = await Promise.all([
+		OutputInvoice.find(query)
+			.sort({ [sortBy]: sortOrder })
+			.skip(skip)
+			.limit(limit)
+			.lean(),
+		OutputInvoice.countDocuments(query),
+	]);
+
+	return {
+		success: true,
+		data: results,
+		pagination: {
+			page,
+			limit,
+			total,
+			pages: Math.ceil(total / limit),
+		},
+	};
+};
+
+const getStorageItemsByBusinessOwner = async (ownerId, options = {}) => {
+	const {
+		page = 1,
+		limit = 10,
+		sortBy = "createdAt",
+		sortOrder = -1,
+		search = "",
+		category = "",
+	} = options;
+	const skip = (page - 1) * limit;
+
+	// Verify business owner exists
+	const owner = await BusinessOwner.findById(ownerId);
+	if (!owner) {
+		throw new ApiError(StatusCodes.NOT_FOUND, "Business owner not found");
+	}
+
+	// Build query
+	const query = { businessOwnerId: ownerId };
+	if (search) {
+		query.$or = [
+			{ name: { $regex: search, $options: "i" } },
+			{ code: { $regex: search, $options: "i" } },
+		];
+	}
+	if (category) {
+		query.category = category;
+	}
+
+	const [results, total] = await Promise.all([
+		StorageItem.find(query)
+			.sort({ [sortBy]: sortOrder })
+			.skip(skip)
+			.limit(limit)
+			.lean(),
+		StorageItem.countDocuments(query),
+	]);
+
+	return {
+		success: true,
+		data: results,
+		pagination: {
+			page,
+			limit,
+			total,
+			pages: Math.ceil(total / limit),
+		},
+	};
+};
+
+const getProductsByBusinessOwner = async (ownerId, options = {}) => {
+	const {
+		page = 1,
+		limit = 10,
+		sortBy = "createdAt",
+		sortOrder = -1,
+		search = "",
+		category = "",
+		isActive = "",
+	} = options;
+	const skip = (page - 1) * limit;
+
+	// Verify business owner exists
+	const owner = await BusinessOwner.findById(ownerId);
+	if (!owner) {
+		throw new ApiError(StatusCodes.NOT_FOUND, "Business owner not found");
+	}
+
+	// Build query
+	const query = { ownerId: ownerId };
+	if (search) {
+		query.$or = [
+			{ name: { $regex: search, $options: "i" } },
+			{ code: { $regex: search, $options: "i" } },
+		];
+	}
+	if (category) {
+		query.category = category;
+	}
+	if (isActive !== "") {
+		query.isActive = isActive === "true";
+	}
+
+	const [results, total] = await Promise.all([
+		Product.find(query)
+			.sort({ [sortBy]: sortOrder })
+			.skip(skip)
+			.limit(limit)
+			.lean(),
+		Product.countDocuments(query),
+	]);
+
+	return {
+		success: true,
+		data: results,
+		pagination: {
+			page,
+			limit,
+			total,
+			pages: Math.ceil(total / limit),
+		},
+	};
+};
+
 export {
 	// User Management
 	getAllUsers,
@@ -384,4 +592,11 @@ export {
 	getSystemStats,
 	getUserStats,
 	getInvoiceStats,
+	// Invoice Management
+	getInvoicesInByBusinessOwner,
+	getOutputInvoicesByBusinessOwner,
+	// Storage Management
+	getStorageItemsByBusinessOwner,
+	// Product Management
+	getProductsByBusinessOwner,
 };
