@@ -48,7 +48,7 @@ const generateInvoiceNumber = async (businessOwnerId) => {
 	if (!isUnique) {
 		throw new ApiError(
 			StatusCodes.INTERNAL_SERVER_ERROR,
-			"Lỗi tạo hóa đơn, vui lòng thử lại"
+			"Lỗi tạo hóa đơn, vui lòng thử lại",
 		);
 	}
 
@@ -65,7 +65,7 @@ const convertUnit = (quantity, fromUnit, toUnit, storageItem) => {
 		const baseUnit = storageItem.unit;
 		if (toUnit === baseUnit) {
 			const fromConversion = storageItem.conversionUnit.to.find(
-				(c) => c.itemName === fromUnit
+				(c) => c.itemName === fromUnit,
 			);
 			if (fromConversion) {
 				return quantity / fromConversion.itemQuantity;
@@ -73,7 +73,7 @@ const convertUnit = (quantity, fromUnit, toUnit, storageItem) => {
 		}
 		if (fromUnit === baseUnit) {
 			const toConversion = storageItem.conversionUnit.to.find(
-				(c) => c.itemName === toUnit
+				(c) => c.itemName === toUnit,
 			);
 			if (toConversion) {
 				return quantity * toConversion.itemQuantity;
@@ -81,10 +81,10 @@ const convertUnit = (quantity, fromUnit, toUnit, storageItem) => {
 		}
 
 		const fromConv = storageItem.conversionUnit.to.find(
-			(c) => c.itemName === fromUnit
+			(c) => c.itemName === fromUnit,
 		);
 		const toConv = storageItem.conversionUnit.to.find(
-			(c) => c.itemName === toUnit
+			(c) => c.itemName === toUnit,
 		);
 		if (fromConv && toConv) {
 			const baseQuantity = quantity / fromConv.itemQuantity;
@@ -95,7 +95,7 @@ const convertUnit = (quantity, fromUnit, toUnit, storageItem) => {
 	// Không còn hỗ trợ unitConversions - DB chỉ có conversionUnit
 	throw new ApiError(
 		StatusCodes.BAD_REQUEST,
-		`Không tìm thấy quy đổi đơn vị từ ${fromUnit} sang ${toUnit} cho "${storageItem.name}"`
+		`Không tìm thấy quy đổi đơn vị từ ${fromUnit} sang ${toUnit} cho "${storageItem.name}"`,
 	);
 };
 
@@ -120,7 +120,7 @@ const deductMaterialsFromStorage = async (materials, ownerId) => {
 		if (!storageItem) {
 			throw new ApiError(
 				StatusCodes.NOT_FOUND,
-				`Không tìm thấy nguyên liệu "${material.component}" trong kho`
+				`Không tìm thấy nguyên liệu "${material.component}" trong kho`,
 			);
 		}
 
@@ -131,14 +131,14 @@ const deductMaterialsFromStorage = async (materials, ownerId) => {
 				quantityToDeduct,
 				material.unit,
 				storageItem.unit,
-				storageItem
+				storageItem,
 			);
 		}
 
 		if (storageItem.stock < quantityToDeduct) {
 			throw new ApiError(
 				StatusCodes.BAD_REQUEST,
-				`Không đủ số lượng tồn kho cho nguyên liệu "${storageItem.name}". Cần: ${quantityToDeduct} ${storageItem.unit}, Tồn kho: ${storageItem.stock} ${storageItem.unit}`
+				`Không đủ số lượng tồn kho cho nguyên liệu "${storageItem.name}". Cần: ${quantityToDeduct} ${storageItem.unit}, Tồn kho: ${storageItem.stock} ${storageItem.unit}`,
 			);
 		}
 
@@ -217,7 +217,7 @@ const createOutputInvoice = async (data, userId) => {
 						if (storageItem.stock < quantityToDeduct) {
 							throw new ApiError(
 								StatusCodes.BAD_REQUEST,
-								`Không đủ số lượng tồn kho cho sản phẩm "${storageItem.name}". Tồn kho: ${storageItem.stock}`
+								`Không đủ số lượng tồn kho cho sản phẩm "${storageItem.name}". Tồn kho: ${storageItem.stock}`,
 							);
 						}
 
@@ -225,11 +225,11 @@ const createOutputInvoice = async (data, userId) => {
 						await storageItem.save();
 
 						console.log(
-							`Đã khấu trừ ${quantityToDeduct} ${storageItem.unit} từ kho cho sản phẩm "${storageItem.name}". Tồn kho còn: ${storageItem.stock}`
+							`Đã khấu trừ ${quantityToDeduct} ${storageItem.unit} từ kho cho sản phẩm "${storageItem.name}". Tồn kho còn: ${storageItem.stock}`,
 						);
 					} else {
 						console.warn(
-							`Không tìm thấy sản phẩm trong kho với tên: ${item.ten}`
+							`Không tìm thấy sản phẩm trong kho với tên: ${item.ten}`,
 						);
 					}
 				}
@@ -320,9 +320,18 @@ const getTotalTaxesByBusinessOwner = async (businessOwnerId, filter = {}) => {
 	};
 };
 
+const getBusinessOwnerByUserId = async (userId) => {
+	const owner = await BusinessOwner.findOne({ userId });
+	if (!owner) {
+		throw new ApiError(StatusCodes.NOT_FOUND, "BusinessOwner not found");
+	}
+	return owner;
+};
+
 export {
 	createOutputInvoice,
 	deleteOutputInvoice,
+	getBusinessOwnerByUserId,
 	getOutputInvoiceById,
 	getTotalTaxesByBusinessOwner,
 	listOutputInvoices,

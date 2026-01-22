@@ -6,10 +6,9 @@ import { StatusCodes } from "http-status-codes";
 const create = async (req, res, next) => {
 	try {
 		const userId = req.user.userId;
-		const result = await outputInvoiceService.createOutputInvoice(
-			req.body,
-			userId
-		);
+		const owner = await outputInvoiceService.getBusinessOwnerByUserId(userId);
+		const data = { ...req.body, businessOwnerId: owner._id };
+		const result = await outputInvoiceService.createOutputInvoice(data, userId);
 		res.status(StatusCodes.CREATED).json(result);
 	} catch (err) {
 		next(err);
@@ -28,7 +27,10 @@ const getById = async (req, res, next) => {
 
 const list = async (req, res, next) => {
 	try {
+		const userId = req.user.userId;
+		const owner = await outputInvoiceService.getBusinessOwnerByUserId(userId);
 		const { page, limit, sortBy, sortOrder, ...filter } = req.query;
+		const queryFilter = { ...filter, businessOwnerId: owner._id };
 		const options = {
 			page: parseInt(page) || 1,
 			limit: parseInt(limit) || 10,
@@ -36,8 +38,8 @@ const list = async (req, res, next) => {
 			sortOrder: parseInt(sortOrder) || -1,
 		};
 		const result = await outputInvoiceService.listOutputInvoices(
-			filter,
-			options
+			queryFilter,
+			options,
 		);
 		res.status(StatusCodes.OK).json(result);
 	} catch (err) {
@@ -121,7 +123,7 @@ const getTotalTaxes = async (req, res, next) => {
 
 		const result = await outputInvoiceService.getTotalTaxesByBusinessOwner(
 			owner._id,
-			filter
+			filter,
 		);
 		res.status(StatusCodes.OK).json(result);
 	} catch (err) {

@@ -7,7 +7,7 @@ export const syncInvoicesFromThirdParty = async (req, res) => {
 		const result = await InvoicesInService.syncInvoicesFromThirdParty(
 			userId,
 			datefrom,
-			dateto
+			dateto,
 		);
 		res.status(200).json(result);
 	} catch (error) {
@@ -35,7 +35,7 @@ export const getInvoiceDetailFromThirdParty = async (req, res) => {
 			nbmst,
 			khhdon,
 			shdon,
-			khmshdon
+			khmshdon,
 		);
 		res.status(200).json(result);
 	} catch (error) {
@@ -57,10 +57,13 @@ export const createInvoice = async (req, res) => {
 
 export const getInvoices = async (req, res) => {
 	try {
-		const invoices = await InvoicesInService.getInvoices(req.query);
+		const userId = req.user.userId;
+		const owner = await InvoicesInService.getBusinessOwnerByUserId(userId);
+		const query = { ...req.query, ownerId: owner._id };
+		const invoices = await InvoicesInService.getInvoices(query);
 		res.status(200).json(invoices);
 	} catch (error) {
-		res.status(400).json({ error: error.message });
+		res.status(error.statusCode || 400).json({ error: error.message });
 	}
 };
 
@@ -78,7 +81,7 @@ export const updateInvoice = async (req, res) => {
 	try {
 		const invoice = await InvoicesInService.updateInvoice(
 			req.params.id,
-			req.body
+			req.body,
 		);
 		if (!invoice) return res.status(404).json({ error: "Invoice not found" });
 		res.status(200).json(invoice);
