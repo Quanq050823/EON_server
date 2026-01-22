@@ -79,11 +79,11 @@ const AccountantSchema = mongoose.Schema(
 			average: { type: Number, default: 0, min: 0, max: 5 },
 			count: { type: Number, default: 0 },
 		},
-		isVerified: { type: Boolean, default: false },
+		isVerified: { type: Boolean, default: true },
 		verificationDate: { type: Date },
 		bio: { type: String, maxlength: 1000 },
 	},
-	{ timestamps: true }
+	{ timestamps: true },
 );
 
 AccountantSchema.index({ userId: 1 });

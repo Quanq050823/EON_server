@@ -11,49 +11,56 @@ router.post(
 	"/",
 	authenticate,
 	authorization(["user", "admin"]),
-	businessOwnerController.create
+	businessOwnerController.create,
 );
 
 router.get(
 	"/me",
 	authenticate,
 	authorization(["user", "admin"]),
-	businessOwnerController.getByUserId
+	businessOwnerController.getByUserId,
 );
 
 router.get(
 	"/tax-deadline",
 	authenticate,
 	authorization(["user", "admin"]),
-	businessOwnerController.getTaxDeadline
+	businessOwnerController.getTaxDeadline,
 );
 
 router.get(
 	"/:userId",
 	authenticate,
 	authorization(["admin"]),
-	businessOwnerController.getByUserId
+	businessOwnerController.getByUserId,
 );
 
 router.put(
 	"/",
 	authenticate,
 	authorization(["user", "admin"]),
-	businessOwnerController.update
+	businessOwnerController.update,
+);
+
+router.put(
+	"/easy-invoice-info",
+	authenticate,
+	authorization(["user", "admin"]),
+	businessOwnerController.updateEasyInvoiceInfo,
 );
 
 router.delete(
 	"/",
 	authenticate,
 	authorization(["user", "admin"]),
-	businessOwnerController.remove
+	businessOwnerController.remove,
 );
 
 router.get(
 	"/",
 	authenticate,
 	authorization(["admin"]),
-	businessOwnerController.list
+	businessOwnerController.list,
 );
 
 export default router;

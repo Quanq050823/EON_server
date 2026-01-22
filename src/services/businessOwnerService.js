@@ -24,7 +24,7 @@ const updateBusinessOwner = async (userId, data) => {
 	const updated = await BusinessOwner.findOneAndUpdate(
 		{ userId },
 		{ $set: data },
-		{ new: true, runValidators: true }
+		{ new: true, runValidators: true },
 	);
 	if (!updated) throw new ApiError(StatusCodes.NOT_FOUND, "Profile not found");
 	return updated;
@@ -127,7 +127,7 @@ const calculateTaxDeadline = (filingFrequency) => {
 			periodStartDate = new Date(
 				yearForDeadline,
 				firstMonthOfNextQuarter - 1,
-				1
+				1,
 			);
 			deadlineDate = new Date(yearForDeadline, firstMonthOfNextQuarter - 1, 30);
 			isInFilingPeriod = false;
@@ -156,10 +156,10 @@ const calculateTaxDeadline = (filingFrequency) => {
 
 	const formattedDeadline = `${String(deadlineDate.getDate()).padStart(
 		2,
-		"0"
+		"0",
 	)}.${String(deadlineDate.getMonth() + 1).padStart(
 		2,
-		"0"
+		"0",
 	)}.${deadlineDate.getFullYear()}`;
 
 	return {
@@ -185,6 +185,28 @@ const getTaxDeadlineInfo = async (userId) => {
 	};
 };
 
+const updateEasyInvoiceInfo = async (userId, easyInvoiceInfo) => {
+	const businessOwner = await BusinessOwner.findOne({ userId });
+	if (!businessOwner) {
+		throw new ApiError(StatusCodes.NOT_FOUND, "Business owner not found");
+	}
+
+	// Update easyInvoiceInfo
+	businessOwner.easyInvoiceInfo = {
+		account: easyInvoiceInfo.account || "",
+		password: easyInvoiceInfo.password || "",
+		mst: easyInvoiceInfo.mst || "",
+		serial: easyInvoiceInfo.serial || "",
+	};
+
+	await businessOwner.save();
+
+	return {
+		message: "EasyInvoice information updated successfully",
+		easyInvoiceInfo: businessOwner.easyInvoiceInfo,
+	};
+};
+
 export {
 	createBusinessOwner,
 	getBusinessOwnerByUserId,
@@ -192,4 +214,5 @@ export {
 	deleteBusinessOwner,
 	listBusinessOwners,
 	getTaxDeadlineInfo,
+	updateEasyInvoiceInfo,
 };

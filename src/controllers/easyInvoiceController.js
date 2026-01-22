@@ -30,7 +30,7 @@ export const getInvoiceByArisingDateRange = async (req, res, next) => {
 
 		const easyInvoiceAccount = owner.easyInvoiceInfo.account;
 		const easyInvoicePassword = owner.easyInvoiceInfo.password;
-		const easyInvoiceSerial = owner.easyInvoiceInfo.mst;
+		const easyInvoiceSerial = owner.easyInvoiceInfo.serial;
 
 		if (!easyInvoiceAccount || !easyInvoicePassword || !easyInvoiceSerial) {
 			return res.status(StatusCodes.BAD_REQUEST).json({
@@ -48,7 +48,7 @@ export const getInvoiceByArisingDateRange = async (req, res, next) => {
 			ToDate,
 			easyInvoiceAccount,
 			easyInvoicePassword,
-			easyInvoiceSerial
+			easyInvoiceSerial,
 		);
 		res.status(StatusCodes.OK).json({ success: true, data: result });
 	} catch (error) {
@@ -92,8 +92,14 @@ export const importInvoice = async (req, res, next) => {
 		}
 
 		const easyInvoiceAccount = owner.easyInvoiceInfo.account;
+		console.log("🚀 ~ importInvoice ~ easyInvoiceAccount:", easyInvoiceAccount);
 		const easyInvoicePassword = owner.easyInvoiceInfo.password;
-		const easyInvoiceSerial = owner.easyInvoiceInfo.mst;
+		console.log(
+			"🚀 ~ importInvoice ~ easyInvoicePassword:",
+			easyInvoicePassword,
+		);
+		const easyInvoiceSerial = owner.easyInvoiceInfo.serial;
+		console.log("🚀 ~ importInvoice ~ easyInvoiceSerial:", easyInvoiceSerial);
 
 		if (!easyInvoiceAccount || !easyInvoicePassword || !easyInvoiceSerial) {
 			return res.status(StatusCodes.BAD_REQUEST).json({
@@ -110,8 +116,9 @@ export const importInvoice = async (req, res, next) => {
 			XmlData,
 			easyInvoiceAccount,
 			easyInvoicePassword,
-			easyInvoiceSerial
+			easyInvoiceSerial,
 		);
+		console.log("🚀 ~ importInvoice ~ XmlData:", XmlData);
 		res
 			.status(StatusCodes.OK)
 			.json({ success: true, data: result, invoiceData });
@@ -156,7 +163,7 @@ export const importAndIssueInvoice = async (req, res, next) => {
 
 		const easyInvoiceAccount = owner.easyInvoiceInfo.account;
 		const easyInvoicePassword = owner.easyInvoiceInfo.password;
-		const easyInvoiceSerial = owner.easyInvoiceInfo.mst;
+		const easyInvoiceSerial = owner.easyInvoiceInfo.serial;
 
 		if (!easyInvoiceAccount || !easyInvoicePassword || !easyInvoiceSerial) {
 			return res.status(StatusCodes.BAD_REQUEST).json({
@@ -173,12 +180,13 @@ export const importAndIssueInvoice = async (req, res, next) => {
 			XmlData,
 			easyInvoiceAccount,
 			easyInvoicePassword,
-			easyInvoiceSerial
+			easyInvoiceSerial,
 		);
 		res
 			.status(StatusCodes.OK)
 			.json({ success: true, data: result, invoiceData });
 	} catch (error) {
+		console.log("🚀 ~ importAndIssueInvoice ~ error:", error);
 		next(new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, error.message));
 	}
 };
@@ -206,7 +214,7 @@ export const cancelInvoice = async (req, res, next) => {
 
 		const easyInvoiceAccount = owner.easyInvoiceInfo.account;
 		const easyInvoicePassword = owner.easyInvoiceInfo.password;
-		const easyInvoiceSerial = owner.easyInvoiceInfo.mst;
+		const easyInvoiceSerial = owner.easyInvoiceInfo.serial;
 
 		if (!easyInvoiceAccount || !easyInvoicePassword || !easyInvoiceSerial) {
 			return res.status(StatusCodes.BAD_REQUEST).json({
@@ -223,7 +231,7 @@ export const cancelInvoice = async (req, res, next) => {
 			Ikey,
 			easyInvoiceAccount,
 			easyInvoicePassword,
-			easyInvoiceSerial
+			easyInvoiceSerial,
 		);
 		res.status(StatusCodes.OK).json({ success: true, data: result });
 	} catch (error) {

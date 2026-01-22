@@ -67,7 +67,7 @@ const list = async (req, res, next) => {
 		};
 		const result = await businessOwnerService.listBusinessOwners(
 			filter,
-			options
+			options,
 		);
 		res.status(StatusCodes.OK).json(result);
 	} catch (err) {
@@ -75,4 +75,26 @@ const list = async (req, res, next) => {
 	}
 };
 
-export { create, getByUserId, update, remove, list, getTaxDeadline };
+const updateEasyInvoiceInfo = async (req, res, next) => {
+	try {
+		const userId = req.user.userId;
+		const easyInvoiceInfo = req.body;
+		const result = await businessOwnerService.updateEasyInvoiceInfo(
+			userId,
+			easyInvoiceInfo,
+		);
+		res.status(StatusCodes.OK).json(result);
+	} catch (err) {
+		next(err);
+	}
+};
+
+export {
+	create,
+	getByUserId,
+	update,
+	remove,
+	list,
+	getTaxDeadline,
+	updateEasyInvoiceInfo,
+};

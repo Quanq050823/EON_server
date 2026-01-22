@@ -11,7 +11,7 @@ export const getInvoiceByArisingDateRange = async (
 	ToDate,
 	easyInvoiceAccount,
 	easyInvoicePassword,
-	easyInvoiceSerial
+	easyInvoiceSerial,
 ) => {
 	try {
 		const url = `${config.easyInvoice.apiUrl}/api/business/getInvoiceByArisingDateRange`;
@@ -21,7 +21,7 @@ export const getInvoiceByArisingDateRange = async (
 				"POST",
 				easyInvoiceAccount,
 				easyInvoicePassword,
-				easyInvoiceSerial
+				easyInvoiceSerial,
 			),
 		};
 		const body = {
@@ -42,7 +42,7 @@ export const getInvoiceByArisingDateRange = async (
 				typeof errorMessage === "object"
 					? JSON.stringify(errorMessage)
 					: errorMessage
-			}`
+			}`,
 		);
 	}
 };
@@ -51,7 +51,7 @@ export const importInvoice = async (
 	XmlData,
 	easyInvoiceAccount,
 	easyInvoicePassword,
-	easyInvoiceSerial
+	easyInvoiceSerial,
 ) => {
 	try {
 		const url = `${config.easyInvoice.apiUrl}/api/publish/importInvoice`;
@@ -61,7 +61,7 @@ export const importInvoice = async (
 				"POST",
 				easyInvoiceAccount,
 				easyInvoicePassword,
-				easyInvoiceSerial
+				easyInvoiceSerial,
 			),
 		};
 		const body = {
@@ -80,7 +80,7 @@ export const importInvoice = async (
 				typeof errorMessage === "object"
 					? JSON.stringify(errorMessage)
 					: errorMessage
-			}`
+			}`,
 		);
 	}
 };
@@ -89,7 +89,7 @@ export const ImportAndIssueInvoice = async (
 	XmlData,
 	easyInvoiceAccount,
 	easyInvoicePassword,
-	easyInvoiceSerial
+	easyInvoiceSerial,
 ) => {
 	try {
 		const url = `${config.easyInvoice.apiUrl}/api/publish/importAndIssueInvoice`;
@@ -99,7 +99,7 @@ export const ImportAndIssueInvoice = async (
 				"POST",
 				easyInvoiceAccount,
 				easyInvoicePassword,
-				easyInvoiceSerial
+				easyInvoiceSerial,
 			),
 		};
 		const body = {
@@ -118,7 +118,7 @@ export const ImportAndIssueInvoice = async (
 				typeof errorMessage === "object"
 					? JSON.stringify(errorMessage)
 					: errorMessage
-			}`
+			}`,
 		);
 	}
 };
@@ -127,7 +127,7 @@ export const cancelInvoice = async (
 	Ikey,
 	easyInvoiceAccount,
 	easyInvoicePassword,
-	easyInvoiceSerial
+	easyInvoiceSerial,
 ) => {
 	try {
 		const url = `${config.easyInvoice.apiUrl}/api/business/cancelInvoice`;
@@ -137,7 +137,7 @@ export const cancelInvoice = async (
 				"POST",
 				easyInvoiceAccount,
 				easyInvoicePassword,
-				easyInvoiceSerial
+				easyInvoiceSerial,
 			),
 		};
 		const body = {
@@ -160,7 +160,7 @@ export const cancelInvoice = async (
 				typeof errorMessage === "object"
 					? JSON.stringify(errorMessage)
 					: errorMessage
-			}`
+			}`,
 		);
 	}
 };
