@@ -1,5 +1,6 @@
 "use strict";
 
+import mongoose from "mongoose";
 import User from "../models/User.js";
 import BusinessOwner from "../models/BusinessOwner.js";
 import Accountant from "../models/Accountant.js";
@@ -106,7 +107,7 @@ const updateUser = async (userId, data) => {
 			new: true,
 			runValidators: true,
 			projection: { password: 0, refreshToken: 0, otp: 0 },
-		}
+		},
 	).lean();
 
 	if (!updatedUser) {
@@ -121,7 +122,7 @@ const deleteUser = async (userId) => {
 	const deletedUser = await User.findByIdAndUpdate(
 		userId,
 		{ $set: { isDeleted: true } },
-		{ new: true, projection: { password: 0, refreshToken: 0, otp: 0 } }
+		{ new: true, projection: { password: 0, refreshToken: 0, otp: 0 } },
 	).lean();
 
 	if (!deletedUser) {
@@ -143,7 +144,7 @@ const updateUserRole = async (userId, role) => {
 	const updatedUser = await User.findByIdAndUpdate(
 		userId,
 		{ $set: { role } },
-		{ new: true, projection: { password: 0, refreshToken: 0, otp: 0 } }
+		{ new: true, projection: { password: 0, refreshToken: 0, otp: 0 } },
 	).lean();
 
 	if (!updatedUser) {
@@ -574,6 +575,85 @@ const getProductsByBusinessOwner = async (ownerId, options = {}) => {
 	};
 };
 
+// Tax Statistics for Business Owner
+const getTaxStatisticsByBusinessOwner = async (ownerId, options = {}) => {
+	const { period = "month", year, month, quarter } = options;
+
+	// Build date filter based on period
+	let startDate, endDate;
+	const currentYear = year ? parseInt(year) : new Date().getFullYear();
+
+	if (period === "month" && month) {
+		const monthNum = parseInt(month);
+		startDate = new Date(currentYear, monthNum - 1, 1);
+		endDate = new Date(currentYear, monthNum, 0, 23, 59, 59);
+	} else if (period === "quarter" && quarter) {
+		const quarterNum = parseInt(quarter);
+		const startMonth = (quarterNum - 1) * 3;
+		startDate = new Date(currentYear, startMonth, 1);
+		endDate = new Date(currentYear, startMonth + 3, 0, 23, 59, 59);
+	} else if (period === "year") {
+		startDate = new Date(currentYear, 0, 1);
+		endDate = new Date(currentYear, 11, 31, 23, 59, 59);
+	} else {
+		// Default to current month
+		const now = new Date();
+		startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+		endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+	}
+
+	// Aggregate OutputInvoices for tax calculation
+	const outputInvoices = await OutputInvoice.aggregate([
+		{
+			$match: {
+				businessOwnerId: new mongoose.Types.ObjectId(ownerId),
+				ncnhat: { $gte: startDate, $lte: endDate },
+				// tthai: { $in: ["1", "2"] },
+			},
+		},
+		{
+			$group: {
+				_id: null,
+				totalGTGT: { $sum: { $toDouble: { $ifNull: ["$totalGTGT", 0] } } },
+				totalTNCN: { $sum: { $toDouble: { $ifNull: ["$totalTNCN", 0] } } },
+				totalRevenue: { $sum: { $toDouble: { $ifNull: ["$tgtttbso", 0] } } },
+				invoiceCount: { $sum: 1 },
+			},
+		},
+	]);
+
+	const stats = outputInvoices[0] || {
+		totalGTGT: 0,
+		totalTNCN: 0,
+		totalRevenue: 0,
+		invoiceCount: 0,
+	};
+
+	// Calculate total tax
+	const totalTax = (stats.totalGTGT || 0) + (stats.totalTNCN || 0);
+
+	return {
+		success: true,
+		data: {
+			period: {
+				type: period,
+				year: currentYear,
+				month: month ? parseInt(month) : undefined,
+				quarter: quarter ? parseInt(quarter) : undefined,
+				startDate,
+				endDate,
+			},
+			statistics: {
+				totalGTGT: stats.totalGTGT || 0,
+				totalTNCN: stats.totalTNCN || 0,
+				totalTax,
+				totalRevenue: stats.totalRevenue || 0,
+				invoiceCount: stats.invoiceCount || 0,
+			},
+		},
+	};
+};
+
 export {
 	// User Management
 	getAllUsers,
@@ -599,4 +679,6 @@ export {
 	getStorageItemsByBusinessOwner,
 	// Product Management
 	getProductsByBusinessOwner,
+	// Tax Statistics
+	getTaxStatisticsByBusinessOwner,
 };
