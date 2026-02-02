@@ -9,28 +9,37 @@ router.post(
 	"/getInvoiceByArisingDateRange",
 	authenticate,
 	authorization(["user", "admin"]),
-	easyInvoiceController.getInvoiceByArisingDateRange
+	easyInvoiceController.getInvoiceByArisingDateRange,
 );
 
 router.post(
 	"/importInvoice",
 	authenticate,
 	authorization(["user", "admin"]),
-	easyInvoiceController.importInvoice
+	easyInvoiceController.importInvoice,
 );
 
 router.post(
 	"/import-and-issue-invoice",
 	authenticate,
 	authorization(["user", "admin"]),
-	easyInvoiceController.importAndIssueInvoice
+	easyInvoiceController.importAndIssueInvoice,
 );
 
 router.post(
 	"/cancel-invoice",
 	authenticate,
 	authorization(["user", "admin"]),
-	easyInvoiceController.cancelInvoice
+	easyInvoiceController.cancelInvoice,
 );
+
+router.get(
+	"/getInvoiceAuto",
+	authenticate,
+	authorization(["user", "admin"]),
+	easyInvoiceController.getInvoiceAuto,
+);
+
+router.post("/viewInvoice", authenticate, easyInvoiceController.viewInvoice);
 
 export default router;

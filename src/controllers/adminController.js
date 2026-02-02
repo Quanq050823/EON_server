@@ -268,6 +268,33 @@ const getTaxStatisticsByBusinessOwner = async (req, res, next) => {
 	}
 };
 
+const getEasyInvoicesByBusinessOwner = async (req, res, next) => {
+	try {
+		const { ownerId } = req.params;
+		const result = await adminService.getEasyInvoicesByBusinessOwner(ownerId);
+		res.status(StatusCodes.OK).json(result);
+	} catch (err) {
+		next(err);
+	}
+};
+
+const viewInvoiceByBusinessOwner = async (req, res, next) => {
+	try {
+		const { ownerId } = req.params;
+		const { Ikey, Pattern, Option, Serial } = req.body;
+		const result = await adminService.viewInvoiceByBusinessOwner(
+			ownerId,
+			Ikey,
+			Pattern,
+			Option,
+			Serial,
+		);
+		res.status(StatusCodes.OK).json(result);
+	} catch (err) {
+		next(err);
+	}
+};
+
 export {
 	// User Management
 	getAllUsers,
@@ -295,4 +322,7 @@ export {
 	getProductsByBusinessOwner,
 	// Tax Statistics
 	getTaxStatisticsByBusinessOwner,
+	// EasyInvoice Management
+	getEasyInvoicesByBusinessOwner,
+	viewInvoiceByBusinessOwner,
 };

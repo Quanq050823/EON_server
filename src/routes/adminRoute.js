@@ -42,6 +42,14 @@ router.get(
 	"/business-owners/:ownerId/tax-statistics",
 	adminController.getTaxStatisticsByBusinessOwner,
 );
+router.get(
+	"/business-owners/:ownerId/easy-invoices",
+	adminController.getEasyInvoicesByBusinessOwner,
+);
+router.post(
+	"/business-owners/:ownerId/easy-invoices/view",
+	adminController.viewInvoiceByBusinessOwner,
+);
 
 // Accountant Management Routes
 router.get("/accountants", adminController.getAllAccountants);

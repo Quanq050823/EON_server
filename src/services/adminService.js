@@ -13,6 +13,7 @@ import Customer from "../models/Customer.js";
 import ApiError from "../utils/ApiError.js";
 import { StatusCodes } from "http-status-codes";
 import bcrypt from "bcryptjs";
+import * as easyInvoiceService from "./easyInvoiceService.js";
 
 // User Management
 const getAllUsers = async (filter = {}, options = {}) => {
@@ -654,6 +655,136 @@ const getTaxStatisticsByBusinessOwner = async (ownerId, options = {}) => {
 	};
 };
 
+const getEasyInvoicesByBusinessOwner = async (ownerId) => {
+	// Get business owner info
+	const owner = await BusinessOwner.findById(ownerId).lean();
+	if (!owner) {
+		throw new ApiError(StatusCodes.NOT_FOUND, "Business owner not found");
+	}
+
+	// Check if EasyInvoice is configured
+	if (
+		!owner.easyInvoiceInfo ||
+		typeof owner.easyInvoiceInfo !== "object" ||
+		Object.keys(owner.easyInvoiceInfo).length === 0
+	) {
+		throw new ApiError(
+			StatusCodes.BAD_REQUEST,
+			"EasyInvoice configuration not found for this business owner",
+		);
+	}
+
+	const easyInvoiceAccount = owner.easyInvoiceInfo.account;
+	const easyInvoicePassword = owner.easyInvoiceInfo.password;
+	const easyInvoiceSerial = owner.easyInvoiceInfo.serial;
+
+	if (!easyInvoiceAccount || !easyInvoicePassword || !easyInvoiceSerial) {
+		throw new ApiError(
+			StatusCodes.BAD_REQUEST,
+			"Missing required EasyInvoice credentials",
+		);
+	}
+
+	// Calculate FromDate based on tax_filing_frequency and createdAt
+	const taxFilingFrequency = owner.tax_filing_frequency || 1;
+	const accountCreatedDate = new Date(owner.createdAt);
+	const now = new Date();
+
+	let fromDate;
+	if (taxFilingFrequency === 2) {
+		// Quarterly - get start of quarter before registration
+		const createdQuarter = Math.floor(accountCreatedDate.getMonth() / 3);
+		const createdYear = accountCreatedDate.getFullYear();
+		fromDate = new Date(createdYear - 1, createdQuarter * 3, 1);
+	} else {
+		// Monthly - get start of month before registration
+		fromDate = new Date(
+			accountCreatedDate.getFullYear(),
+			accountCreatedDate.getMonth(),
+			1,
+		);
+	}
+
+	// Format dates to DD/MM/YYYY
+	const formatDate = (date) => {
+		const day = String(date.getDate()).padStart(2, "0");
+		const month = String(date.getMonth() + 1).padStart(2, "0");
+		const year = date.getFullYear();
+		return `${day}/${month}/${year}`;
+	};
+
+	const FromDate = formatDate(fromDate);
+	const ToDate = formatDate(now);
+
+	// Call EasyInvoice service
+	const result = await easyInvoiceService.getInvoiceByArisingDateRange(
+		FromDate,
+		ToDate,
+		easyInvoiceAccount,
+		easyInvoicePassword,
+		easyInvoiceSerial,
+	);
+
+	return {
+		success: true,
+		data: result,
+		dateRange: { FromDate, ToDate },
+	};
+};
+
+const viewInvoiceByBusinessOwner = async (
+	ownerId,
+	Ikey,
+	Pattern,
+	Option,
+	Serial,
+) => {
+	// Get business owner info
+	const owner = await BusinessOwner.findById(ownerId).lean();
+	if (!owner) {
+		throw new ApiError(StatusCodes.NOT_FOUND, "Business owner not found");
+	}
+
+	// Check if EasyInvoice is configured
+	if (
+		!owner.easyInvoiceInfo ||
+		typeof owner.easyInvoiceInfo !== "object" ||
+		Object.keys(owner.easyInvoiceInfo).length === 0
+	) {
+		throw new ApiError(
+			StatusCodes.BAD_REQUEST,
+			"EasyInvoice configuration not found for this business owner",
+		);
+	}
+
+	const easyInvoiceAccount = owner.easyInvoiceInfo.account;
+	const easyInvoicePassword = owner.easyInvoiceInfo.password;
+	const easyInvoiceSerial = owner.easyInvoiceInfo.serial;
+
+	if (!easyInvoiceAccount || !easyInvoicePassword || !easyInvoiceSerial) {
+		throw new ApiError(
+			StatusCodes.BAD_REQUEST,
+			"Missing required EasyInvoice credentials",
+		);
+	}
+
+	// Call EasyInvoice service
+	const result = await easyInvoiceService.viewInvoice(
+		Ikey,
+		Pattern,
+		Option,
+		Serial,
+		easyInvoiceAccount,
+		easyInvoicePassword,
+		easyInvoiceSerial,
+	);
+
+	return {
+		success: true,
+		data: result,
+	};
+};
+
 export {
 	// User Management
 	getAllUsers,
@@ -681,4 +812,7 @@ export {
 	getProductsByBusinessOwner,
 	// Tax Statistics
 	getTaxStatisticsByBusinessOwner,
+	// EasyInvoice Management
+	getEasyInvoicesByBusinessOwner,
+	viewInvoiceByBusinessOwner,
 };
