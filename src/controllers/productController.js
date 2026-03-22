@@ -17,7 +17,7 @@ const create = async (req, res, next) => {
 			const storageItems = await storageItemService.listStorageItems(
 				owner._id,
 				{},
-				{ limit: 1000 }
+				{ limit: 1000 },
 			);
 			const validUnitsSet = new Set();
 

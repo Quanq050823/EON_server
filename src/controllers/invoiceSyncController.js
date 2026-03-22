@@ -67,7 +67,7 @@ export const loginWithCredentials = async (req, res) => {
 			sessionId,
 			captcha,
 			startDate,
-			invoiceType
+			invoiceType,
 		);
 
 		if (result.success && invoiceType === "output") {
@@ -100,12 +100,12 @@ export const loginWithCredentials = async (req, res) => {
 						mhdon: savedInvoice.mhdon,
 					});
 					console.log(
-						`Đã lưu hóa đơn ${gdtInvoice.shdon} vào DB với ID: ${savedInvoice._id}`
+						`Đã lưu hóa đơn ${gdtInvoice.shdon} vào DB với ID: ${savedInvoice._id}`,
 					);
 				} catch (error) {
 					console.error(
 						`Lỗi khi lưu hóa đơn ${gdtInvoice.shdon}:`,
-						error.message
+						error.message,
 					);
 					console.error(error);
 					failedInvoices.push({
