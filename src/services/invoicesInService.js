@@ -16,7 +16,7 @@ const createInvoice = async (data) => {
 	if (existed)
 		throw new ApiError(
 			StatusCodes.BAD_REQUEST,
-			"Invoice code (mhdon) already exists for this business owner"
+			"Invoice code (mhdon) already exists for this business owner",
 		);
 	const invoice = new InvoicesIn(data);
 	return await invoice.save();
@@ -72,41 +72,58 @@ const splitDateRangeIntoChunks = (startDate, endDate, maxDays) => {
 
 	return chunks;
 };
-
 const fetchInvoicesFromThirdParty = async (datefrom, dateto, taxCode) => {
-	const response = await axios.get(`${API_BASE_URL}/get-list-invoice`, {
-		headers: {
-			Authorization: `Bearer ${THIRD_PARTY_TOKEN}`,
-			"Content-Type": "application/json",
-		},
-		params: { datefrom, dateto, mst: taxCode },
-	});
+	// Force datefrom and dateto to fixed values
+	datefrom = "2026-01-01";
+	dateto = "2026-01-31";
 
-	let invoices = [];
-	if (Array.isArray(response.data)) {
-		invoices = response.data;
-	} else if (Array.isArray(response.data.result)) {
-		invoices = response.data.result;
-	} else if (Array.isArray(response.data.invoices)) {
-		invoices = response.data.invoices;
+	console.log("🚀 ~ fetchInvoicesFromThirdParty ~ params.datefrom:", datefrom);
+	console.log("🚀 ~ fetchInvoicesFromThirdParty ~ params.dateto:", dateto);
+	console.log("🚀 ~ fetchInvoicesFromThirdParty ~ params.taxCode:", taxCode);
+
+	try {
+		const response = await axios.get(`${API_BASE_URL}/get-list-invoice`, {
+			headers: {
+				Authorization: `Bearer ${THIRD_PARTY_TOKEN}`,
+				"Content-Type": "application/json",
+			},
+			params: { datefrom, dateto, mst: taxCode },
+		});
+
+		let invoices = [];
+		if (Array.isArray(response.data)) {
+			invoices = response.data;
+			console.log("🚀 ~ fetchInvoicesFromThirdParty ~ invoices:", invoices);
+		} else if (Array.isArray(response.data.result)) {
+			invoices = response.data.result;
+		} else if (Array.isArray(response.data.invoices)) {
+			invoices = response.data.invoices;
+		}
+
+		if (!Array.isArray(invoices) || invoices.length === 0) {
+			throw new ApiError(
+				StatusCodes.NOT_FOUND,
+				"No invoices found from third party API",
+			);
+		}
+
+		return invoices;
+	} catch (err) {
+		if (err.code === "ECONNABORTED") {
+			console.warn(
+				`Timeout (30s) when fetching invoices from ${datefrom} to ${dateto} for taxCode ${taxCode}`,
+			);
+			return [];
+		}
+		throw err;
 	}
-
-	if (!Array.isArray(invoices) || invoices.length === 0) {
-		throw new ApiError(
-			StatusCodes.NOT_FOUND,
-			"No invoices found from third party API"
-		);
-	}
-
-	return invoices;
 };
-
 const fetchInvoiceDetailFromThirdParty = async (
 	nbmst,
 	khhdon,
 	shdon,
 	khmshdon,
-	taxCode
+	taxCode,
 ) => {
 	const response = await axios.get(`${API_BASE_URL}/invoice-detail`, {
 		headers: {
@@ -123,7 +140,7 @@ const syncInvoicesFromThirdParty = async (userId, datefrom, dateto) => {
 	if (!datefrom || !dateto) {
 		throw new ApiError(
 			StatusCodes.BAD_REQUEST,
-			"Missing required parameters: datefrom and dateto"
+			"Missing required parameters: datefrom and dateto",
 		);
 	}
 
@@ -131,7 +148,7 @@ const syncInvoicesFromThirdParty = async (userId, datefrom, dateto) => {
 	const invoices = await fetchInvoicesFromThirdParty(
 		datefrom,
 		dateto,
-		owner.taxCode
+		owner.taxCode,
 	);
 
 	let sync = 0,
@@ -166,9 +183,18 @@ const syncListInvoicesDetailsFromThirdParty = async (userId) => {
 					Authorization: `Bearer ${THIRD_PARTY_TOKEN}`,
 					"Content-Type": "application/json",
 				},
-			}
+			},
 		);
-	} catch (error) {}
+	} catch (error) {
+		console.error(
+			"Error occurred while logging in to third-party client:",
+			error,
+		);
+		throw new ApiError(
+			StatusCodes.INTERNAL_SERVER_ERROR,
+			"Failed to log in to third-party client",
+		);
+	}
 	const latestInvoice = await InvoicesIn.findOne({ ownerId: owner._id })
 		.sort({ ncnhat: -1 })
 		.select("ncnhat");
@@ -200,7 +226,7 @@ const syncListInvoicesDetailsFromThirdParty = async (userId) => {
 	const dateChunks = splitDateRangeIntoChunks(
 		finalDateFrom,
 		finalDateTo,
-		MAX_DAYS_PER_REQUEST
+		MAX_DAYS_PER_REQUEST,
 	);
 
 	let totalSync = 0,
@@ -217,7 +243,7 @@ const syncListInvoicesDetailsFromThirdParty = async (userId) => {
 			const invoices = await fetchInvoicesFromThirdParty(
 				chunk.from,
 				chunk.to,
-				owner.taxCode
+				owner.taxCode,
 			);
 
 			console.log(`Found ${invoices.length} invoices in chunk`);
@@ -241,7 +267,7 @@ const syncListInvoicesDetailsFromThirdParty = async (userId) => {
 						invoice.khhdon,
 						invoice.shdon,
 						invoice.khmshdon,
-						owner.taxCode
+						owner.taxCode,
 					);
 
 					const invoiceDetailArr = detailResponse?.result;
@@ -281,12 +307,12 @@ const syncListInvoicesDetailsFromThirdParty = async (userId) => {
 			});
 
 			console.log(
-				`Chunk completed: sync=${chunkSync}, skip=${chunkSkip}, fail=${chunkFail}`
+				`Chunk completed: sync=${chunkSync}, skip=${chunkSkip}, fail=${chunkFail}`,
 			);
 		} catch (err) {
 			console.error(
 				`Error processing chunk ${chunk.from} to ${chunk.to}:`,
-				err
+				err,
 			);
 			processedChunks.push({
 				dateFrom: chunk.from,
@@ -313,12 +339,12 @@ const getInvoiceDetailFromThirdParty = async (
 	nbmst,
 	khhdon,
 	shdon,
-	khmshdon
+	khmshdon,
 ) => {
 	if (!nbmst || !khhdon || !shdon || !khmshdon) {
 		throw new ApiError(
 			StatusCodes.BAD_REQUEST,
-			"Missing required parameters: nbmst, khhdon, shdon, khmshdon"
+			"Missing required parameters: nbmst, khhdon, shdon, khmshdon",
 		);
 	}
 
@@ -328,7 +354,7 @@ const getInvoiceDetailFromThirdParty = async (
 		khhdon,
 		shdon,
 		khmshdon,
-		owner.taxCode
+		owner.taxCode,
 	);
 
 	return invoiceDetail;
