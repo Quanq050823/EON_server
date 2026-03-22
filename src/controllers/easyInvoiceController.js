@@ -4,8 +4,60 @@ import { StatusCodes } from "http-status-codes";
 import * as easyInvoiceService from "../services/easyInvoiceService.js";
 import ApiError from "../utils/ApiError.js";
 import { getBusinessOwnerByUserId } from "../services/businessOwnerService.js";
+import { createOutputInvoice } from "../services/outputInvoiceService.js";
 import { buildInvoiceXML } from "../utils/xmlBuilder.js";
 import { processInvoiceData } from "../utils/invoiceHelper.js";
+
+const normalizeInvoiceData = (invoiceData) => {
+	if (!invoiceData) {
+		return null;
+	}
+
+	return processInvoiceData({
+		...invoiceData,
+		products: Array.isArray(invoiceData.products)
+			? invoiceData.products.map((product) => ({ ...product }))
+			: [],
+	});
+};
+
+const mapEasyInvoiceToOutputInvoice = (invoiceData) => {
+	if (!invoiceData) {
+		return null;
+	}
+
+	return {
+		nmmst: invoiceData.customerTaxCode || "",
+		nmten: invoiceData.customerName || "",
+		nmdchi: invoiceData.customerAddress || "",
+		tgtttbso: invoiceData.amount || invoiceData.total || 0,
+		tgtttbchu: invoiceData.amountInWords || "",
+		thtttoan: invoiceData.paymentMethod || "",
+		hdhhdvu: Array.isArray(invoiceData.products)
+			? invoiceData.products.map((product, index) => ({
+				id: String(index + 1),
+				stt: String(index + 1),
+				ten: product.name || "",
+				dvtinh: product.unit || "",
+				sluong: String(product.quantity || 0),
+				dgia: String(product.price || 0),
+				thtien: String(product.total || product.quantity * product.price || 0),
+				tchat: String(product.tchat || 0),
+			}))
+			: [],
+	};
+};
+
+const saveOutputInvoiceFromEasyInvoice = async (invoiceData, userId) => {
+	if (!invoiceData) {
+		return null;
+	}
+
+	const outputInvoiceData = mapEasyInvoiceToOutputInvoice(invoiceData);
+	return createOutputInvoice(outputInvoiceData, userId);
+};
+
+const isEasyInvoiceSuccess = (result) => Number(result?.Status) === 1;
 
 export const getInvoiceByArisingDateRange = async (req, res, next) => {
 	try {
@@ -59,11 +111,11 @@ export const getInvoiceByArisingDateRange = async (req, res, next) => {
 export const importInvoice = async (req, res, next) => {
 	try {
 		let { XmlData, invoiceData } = req.body;
+		const normalizedInvoiceData = normalizeInvoiceData(invoiceData);
 
 		// Support both XmlData (backward compatible) and invoiceData (dynamic)
-		if (!XmlData && invoiceData) {
-			invoiceData = processInvoiceData(invoiceData);
-			XmlData = buildInvoiceXML(invoiceData);
+		if (!XmlData && normalizedInvoiceData) {
+			XmlData = buildInvoiceXML(normalizedInvoiceData);
 			console.log("Generated XML from invoiceData:", XmlData);
 		}
 
@@ -118,10 +170,33 @@ export const importInvoice = async (req, res, next) => {
 			easyInvoicePassword,
 			easyInvoiceSerial,
 		);
+
+		let savedInvoice = null;
+		if (isEasyInvoiceSuccess(result)) {
+			try {
+				savedInvoice = await saveOutputInvoiceFromEasyInvoice(
+					normalizedInvoiceData,
+					userId,
+				);
+			} catch (saveError) {
+				return next(
+					new ApiError(
+						StatusCodes.INTERNAL_SERVER_ERROR,
+						`Xuất CCT thành công nhưng lưu DB thất bại: ${saveError.message}`,
+					),
+				);
+			}
+		}
+
 		console.log("🚀 ~ importInvoice ~ XmlData:", XmlData);
 		res
 			.status(StatusCodes.OK)
-			.json({ success: true, data: result, invoiceData });
+			.json({
+				success: true,
+				data: result,
+				invoiceData: normalizedInvoiceData,
+				savedInvoice,
+			});
 	} catch (error) {
 		next(new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, error.message));
 	}
@@ -130,10 +205,10 @@ export const importInvoice = async (req, res, next) => {
 export const importAndIssueInvoice = async (req, res, next) => {
 	try {
 		let { XmlData, invoiceData } = req.body;
+		const normalizedInvoiceData = normalizeInvoiceData(invoiceData);
 
-		if (!XmlData && invoiceData) {
-			invoiceData = processInvoiceData(invoiceData);
-			XmlData = buildInvoiceXML(invoiceData);
+		if (!XmlData && normalizedInvoiceData) {
+			XmlData = buildInvoiceXML(normalizedInvoiceData);
 			console.log("Generated XML from invoiceData:", XmlData);
 		}
 
@@ -182,9 +257,32 @@ export const importAndIssueInvoice = async (req, res, next) => {
 			easyInvoicePassword,
 			easyInvoiceSerial,
 		);
+
+		let savedInvoice = null;
+		if (isEasyInvoiceSuccess(result)) {
+			try {
+				savedInvoice = await saveOutputInvoiceFromEasyInvoice(
+					normalizedInvoiceData,
+					userId,
+				);
+			} catch (saveError) {
+				return next(
+					new ApiError(
+						StatusCodes.INTERNAL_SERVER_ERROR,
+						`Xuất CCT thành công nhưng lưu DB thất bại: ${saveError.message}`,
+					),
+				);
+			}
+		}
+
 		res
 			.status(StatusCodes.OK)
-			.json({ success: true, data: result, invoiceData });
+			.json({
+				success: true,
+				data: result,
+				invoiceData: normalizedInvoiceData,
+				savedInvoice,
+			});
 	} catch (error) {
 		console.log("🚀 ~ importAndIssueInvoice ~ error:", error);
 		next(new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, error.message));
