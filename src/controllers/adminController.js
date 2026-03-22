@@ -176,7 +176,7 @@ const getInvoicesInByBusinessOwner = async (req, res, next) => {
 		};
 		const result = await adminService.getInvoicesInByBusinessOwner(
 			ownerId,
-			options
+			options,
 		);
 		res.status(StatusCodes.OK).json(result);
 	} catch (err) {
@@ -198,7 +198,7 @@ const getOutputInvoicesByBusinessOwner = async (req, res, next) => {
 		};
 		const result = await adminService.getOutputInvoicesByBusinessOwner(
 			ownerId,
-			options
+			options,
 		);
 		res.status(StatusCodes.OK).json(result);
 	} catch (err) {
@@ -220,7 +220,7 @@ const getStorageItemsByBusinessOwner = async (req, res, next) => {
 		};
 		const result = await adminService.getStorageItemsByBusinessOwner(
 			ownerId,
-			options
+			options,
 		);
 		res.status(StatusCodes.OK).json(result);
 	} catch (err) {
@@ -244,7 +244,50 @@ const getProductsByBusinessOwner = async (req, res, next) => {
 		};
 		const result = await adminService.getProductsByBusinessOwner(
 			ownerId,
-			options
+			options,
+		);
+		res.status(StatusCodes.OK).json(result);
+	} catch (err) {
+		next(err);
+	}
+};
+
+// Tax Statistics
+const getTaxStatisticsByBusinessOwner = async (req, res, next) => {
+	try {
+		const { ownerId } = req.params;
+		const { period, year, month, quarter } = req.query;
+		const options = { period, year, month, quarter };
+		const result = await adminService.getTaxStatisticsByBusinessOwner(
+			ownerId,
+			options,
+		);
+		res.status(StatusCodes.OK).json(result);
+	} catch (err) {
+		next(err);
+	}
+};
+
+const getEasyInvoicesByBusinessOwner = async (req, res, next) => {
+	try {
+		const { ownerId } = req.params;
+		const result = await adminService.getEasyInvoicesByBusinessOwner(ownerId);
+		res.status(StatusCodes.OK).json(result);
+	} catch (err) {
+		next(err);
+	}
+};
+
+const viewInvoiceByBusinessOwner = async (req, res, next) => {
+	try {
+		const { ownerId } = req.params;
+		const { Ikey, Pattern, Option, Serial } = req.body;
+		const result = await adminService.viewInvoiceByBusinessOwner(
+			ownerId,
+			Ikey,
+			Pattern,
+			Option,
+			Serial,
 		);
 		res.status(StatusCodes.OK).json(result);
 	} catch (err) {
@@ -277,4 +320,9 @@ export {
 	getStorageItemsByBusinessOwner,
 	// Product Management
 	getProductsByBusinessOwner,
+	// Tax Statistics
+	getTaxStatisticsByBusinessOwner,
+	// EasyInvoice Management
+	getEasyInvoicesByBusinessOwner,
+	viewInvoiceByBusinessOwner,
 };

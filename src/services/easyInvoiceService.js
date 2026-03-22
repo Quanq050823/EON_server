@@ -164,3 +164,51 @@ export const cancelInvoice = async (
 		);
 	}
 };
+
+export const viewInvoice = async (
+	Ikey,
+	Pattern,
+	Option,
+	Serial,
+	easyInvoiceAccount,
+	easyInvoicePassword,
+	easyInvoiceSerial,
+) => {
+	try {
+		const url = `${config.easyInvoice.apiUrl}/api/publish/viewInvoice`;
+		console.log("EasyInvoice API URL:", url);
+		const headers = {
+			...getAuthHeaders(
+				"POST",
+				easyInvoiceAccount,
+				easyInvoicePassword,
+				easyInvoiceSerial,
+			),
+		};
+		const body = {
+			Ikey: Ikey,
+			Pattern: Pattern,
+			Option: Option,
+			Serial: Serial,
+		};
+		console.log("Request Body:", body);
+		console.log("Request Headers:", headers);
+		const response = await axios.post(url, body, { headers });
+		console.log("EasyInvoice Response:", response.data);
+		return response.data;
+	} catch (error) {
+		console.error("EasyInvoice Error:", error.response?.data || error.message);
+		const statusCode =
+			error.response?.status || StatusCodes.INTERNAL_SERVER_ERROR;
+		const errorMessage =
+			error.response?.data?.message || error.response?.data || error.message;
+		throw new ApiError(
+			statusCode,
+			`Failed to view invoice: ${
+				typeof errorMessage === "object"
+					? JSON.stringify(errorMessage)
+					: errorMessage
+			}`,
+		);
+	}
+};

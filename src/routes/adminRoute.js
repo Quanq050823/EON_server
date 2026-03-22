@@ -24,19 +24,31 @@ router.get("/business-owners", adminController.getAllBusinessOwners);
 router.get("/business-owners/:ownerId", adminController.getBusinessOwnerById);
 router.get(
 	"/business-owners/:ownerId/invoices-in",
-	adminController.getInvoicesInByBusinessOwner
+	adminController.getInvoicesInByBusinessOwner,
 );
 router.get(
 	"/business-owners/:ownerId/output-invoices",
-	adminController.getOutputInvoicesByBusinessOwner
+	adminController.getOutputInvoicesByBusinessOwner,
 );
 router.get(
 	"/business-owners/:ownerId/storage-items",
-	adminController.getStorageItemsByBusinessOwner
+	adminController.getStorageItemsByBusinessOwner,
 );
 router.get(
 	"/business-owners/:ownerId/products",
-	adminController.getProductsByBusinessOwner
+	adminController.getProductsByBusinessOwner,
+);
+router.get(
+	"/business-owners/:ownerId/tax-statistics",
+	adminController.getTaxStatisticsByBusinessOwner,
+);
+router.get(
+	"/business-owners/:ownerId/easy-invoices",
+	adminController.getEasyInvoicesByBusinessOwner,
+);
+router.post(
+	"/business-owners/:ownerId/easy-invoices/view",
+	adminController.viewInvoiceByBusinessOwner,
 );
 
 // Accountant Management Routes
