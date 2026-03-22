@@ -35,15 +35,17 @@ const mapEasyInvoiceToOutputInvoice = (invoiceData) => {
 		thtttoan: invoiceData.paymentMethod || "",
 		hdhhdvu: Array.isArray(invoiceData.products)
 			? invoiceData.products.map((product, index) => ({
-				id: String(index + 1),
-				stt: String(index + 1),
-				ten: product.name || "",
-				dvtinh: product.unit || "",
-				sluong: String(product.quantity || 0),
-				dgia: String(product.price || 0),
-				thtien: String(product.total || product.quantity * product.price || 0),
-				tchat: String(product.tchat || 0),
-			}))
+					id: String(index + 1),
+					stt: String(index + 1),
+					ten: product.name || "",
+					dvtinh: product.unit || "",
+					sluong: String(product.quantity || 0),
+					dgia: String(product.price || 0),
+					thtien: String(
+						product.total || product.quantity * product.price || 0,
+					),
+					tchat: String(product.tchat || 0),
+				}))
 			: [],
 	};
 };
@@ -189,14 +191,12 @@ export const importInvoice = async (req, res, next) => {
 		}
 
 		console.log("🚀 ~ importInvoice ~ XmlData:", XmlData);
-		res
-			.status(StatusCodes.OK)
-			.json({
-				success: true,
-				data: result,
-				invoiceData: normalizedInvoiceData,
-				savedInvoice,
-			});
+		res.status(StatusCodes.OK).json({
+			success: true,
+			data: result,
+			invoiceData: normalizedInvoiceData,
+			savedInvoice,
+		});
 	} catch (error) {
 		next(new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, error.message));
 	}
@@ -275,14 +275,12 @@ export const importAndIssueInvoice = async (req, res, next) => {
 			}
 		}
 
-		res
-			.status(StatusCodes.OK)
-			.json({
-				success: true,
-				data: result,
-				invoiceData: normalizedInvoiceData,
-				savedInvoice,
-			});
+		res.status(StatusCodes.OK).json({
+			success: true,
+			data: result,
+			invoiceData: normalizedInvoiceData,
+			savedInvoice,
+		});
 	} catch (error) {
 		console.log("🚀 ~ importAndIssueInvoice ~ error:", error);
 		next(new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, error.message));
