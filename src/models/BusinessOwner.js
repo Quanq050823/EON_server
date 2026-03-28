@@ -54,9 +54,10 @@ const BusinessOwnerSchema = mongoose.Schema(
 			password: { type: String },
 			mst: { type: String },
 			serial: { type: String },
+			apiUrl: { type: String },
 		},
 	},
-	{ timestamps: true }
+	{ timestamps: true },
 );
 
 BusinessOwnerSchema.index({ userId: 1 });

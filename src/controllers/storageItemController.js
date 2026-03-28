@@ -19,7 +19,7 @@ const create = async (req, res, next) => {
 		}
 		const result = await storageItemService.createStorageItem(
 			req.body,
-			owner._id
+			owner._id,
 		);
 		res.status(StatusCodes.CREATED).json(result);
 	} catch (err) {
@@ -38,7 +38,7 @@ const getById = async (req, res, next) => {
 		}
 		const result = await storageItemService.getStorageItemById(
 			req.params.id,
-			owner._id
+			owner._id,
 		);
 		res.status(StatusCodes.OK).json(result);
 	} catch (err) {
@@ -65,7 +65,7 @@ const list = async (req, res, next) => {
 		const result = await storageItemService.listStorageItems(
 			owner._id,
 			filter,
-			options
+			options,
 		);
 		res.status(StatusCodes.OK).json(result);
 	} catch (err) {
@@ -93,7 +93,7 @@ const listStorageItems = async (req, res, next) => {
 		const result = await storageItemService.listStorageItems(
 			owner._id,
 			syncedFilter,
-			options
+			options,
 		);
 		res.status(StatusCodes.OK).json(result);
 	} catch (err) {
@@ -121,7 +121,7 @@ const listNewSyncItem = async (req, res, next) => {
 		const result = await storageItemService.listStorageItems(
 			owner._id,
 			newSyncFilter,
-			options
+			options,
 		);
 		res.status(StatusCodes.OK).json(result);
 	} catch (err) {
@@ -141,7 +141,7 @@ const update = async (req, res, next) => {
 		const result = await storageItemService.updateStorageItem(
 			req.params.id,
 			req.body,
-			owner._id
+			owner._id,
 		);
 		res.status(StatusCodes.OK).json(result);
 	} catch (err) {
@@ -160,7 +160,7 @@ const remove = async (req, res, next) => {
 		}
 		const result = await storageItemService.deleteStorageItem(
 			req.params.id,
-			owner._id
+			owner._id,
 		);
 		res.status(StatusCodes.OK).json(result);
 	} catch (err) {
@@ -182,7 +182,7 @@ const namesAndUnits = async (req, res, next) => {
 		const items = await storageItemService.listStorageItems(
 			owner._id,
 			{},
-			{ limit: 1000 }
+			{ limit: 1000 },
 		);
 		const names = items.data.map((item) => item.name);
 		const units = [...new Set(items.data.map((item) => item.unit))];
@@ -217,7 +217,7 @@ const syncStorageItems = async (req, res, next) => {
 						const existingItems = await storageItemService.listStorageItems(
 							owner._id, // <-- FIXED: owner._id first
 							{ name: data.name }, // filter
-							{ limit: 1 } // options
+							{ limit: 1 }, // options
 						);
 
 						if (existingItems.data.length > 0) {
@@ -225,7 +225,7 @@ const syncStorageItems = async (req, res, next) => {
 							await storageItemService.updateStorageItem(
 								existingItem._id,
 								{ stock: existingItem.stock + data.stock },
-								owner._id
+								owner._id,
 							);
 						} else {
 							await storageItemService.createStorageItem(data, owner._id);
@@ -246,7 +246,7 @@ const syncStorageItems = async (req, res, next) => {
 				console.error(
 					"Không thể cập nhật trạng thái đồng bộ cho hóa đơn:",
 					invoice._id,
-					err
+					err,
 				);
 			}
 		}
@@ -278,7 +278,7 @@ const genTypeItem = async (req, res, next) => {
 		const result = await storageItemService.generateTypeItems(
 			req.params.id,
 			req.body,
-			owner._id
+			owner._id,
 		);
 		res.status(StatusCodes.OK).json(result);
 	} catch (err) {
@@ -350,7 +350,7 @@ const updateUnitConversion = async (req, res, next) => {
 		const result = await storageItemService.updateUnitConversion(
 			req.params.id,
 			conversionData,
-			owner._id
+			owner._id,
 		);
 
 		res.status(StatusCodes.OK).json({
@@ -379,7 +379,7 @@ const getIdByName = async (req, res, next) => {
 		}
 		const result = await storageItemService.getStorageItemIdByName(
 			name,
-			owner._id
+			owner._id,
 		);
 		res.status(StatusCodes.OK).json(result);
 	} catch (err) {
@@ -404,7 +404,7 @@ const getByIdFromBody = async (req, res, next) => {
 		}
 		const result = await storageItemService.getStorageItemByIdFromBody(
 			id,
-			owner._id
+			owner._id,
 		);
 		res.status(StatusCodes.OK).json(result);
 	} catch (err) {

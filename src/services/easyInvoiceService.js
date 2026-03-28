@@ -12,9 +12,13 @@ export const getInvoiceByArisingDateRange = async (
 	easyInvoiceAccount,
 	easyInvoicePassword,
 	easyInvoiceSerial,
+	easyInvoiceApiUrl,
+	Page = 1,
+	PageSize = 20,
 ) => {
 	try {
-		const url = `${config.easyInvoice.apiUrl}/api/business/getInvoiceByArisingDateRange`;
+		const baseUrl = easyInvoiceApiUrl || config.easyInvoice.apiUrl;
+		const url = `${baseUrl}/api/business/getInvoiceByArisingDateRange`;
 		console.log("EasyInvoice API URL:", url);
 		const headers = {
 			...getAuthHeaders(
@@ -27,6 +31,8 @@ export const getInvoiceByArisingDateRange = async (
 		const body = {
 			FromDate: FromDate,
 			ToDate: ToDate,
+			Page: Page,
+			PageSize: PageSize,
 		};
 		const response = await axios.post(url, body, { headers });
 		return response.data;
@@ -52,9 +58,11 @@ export const importInvoice = async (
 	easyInvoiceAccount,
 	easyInvoicePassword,
 	easyInvoiceSerial,
+	easyInvoiceApiUrl,
 ) => {
 	try {
-		const url = `${config.easyInvoice.apiUrl}/api/publish/importInvoice`;
+		const baseUrl = easyInvoiceApiUrl || config.easyInvoice.apiUrl;
+		const url = `${baseUrl}/api/publish/importInvoice`;
 		console.log("EasyInvoice API URL:", url);
 		const headers = {
 			...getAuthHeaders(
@@ -90,9 +98,11 @@ export const ImportAndIssueInvoice = async (
 	easyInvoiceAccount,
 	easyInvoicePassword,
 	easyInvoiceSerial,
+	easyInvoiceApiUrl,
 ) => {
 	try {
-		const url = `${config.easyInvoice.apiUrl}/api/publish/importAndIssueInvoice`;
+		const baseUrl = easyInvoiceApiUrl || config.easyInvoice.apiUrl;
+		const url = `${baseUrl}/api/publish/importAndIssueInvoice`;
 		console.log("EasyInvoice API URL:", url);
 		const headers = {
 			...getAuthHeaders(
@@ -128,9 +138,11 @@ export const cancelInvoice = async (
 	easyInvoiceAccount,
 	easyInvoicePassword,
 	easyInvoiceSerial,
+	easyInvoiceApiUrl,
 ) => {
 	try {
-		const url = `${config.easyInvoice.apiUrl}/api/business/cancelInvoice`;
+		const baseUrl = easyInvoiceApiUrl || config.easyInvoice.apiUrl;
+		const url = `${baseUrl}/api/business/cancelInvoice`;
 		console.log("EasyInvoice API URL:", url);
 		const headers = {
 			...getAuthHeaders(
@@ -173,9 +185,11 @@ export const viewInvoice = async (
 	easyInvoiceAccount,
 	easyInvoicePassword,
 	easyInvoiceSerial,
+	easyInvoiceApiUrl,
 ) => {
 	try {
-		const url = `${config.easyInvoice.apiUrl}/api/publish/viewInvoice`;
+		const baseUrl = easyInvoiceApiUrl || config.easyInvoice.apiUrl;
+		const url = `${baseUrl}/api/publish/viewInvoice`;
 		console.log("EasyInvoice API URL:", url);
 		const headers = {
 			...getAuthHeaders(

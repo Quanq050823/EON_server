@@ -655,7 +655,8 @@ const getTaxStatisticsByBusinessOwner = async (ownerId, options = {}) => {
 	};
 };
 
-const getEasyInvoicesByBusinessOwner = async (ownerId) => {
+const getEasyInvoicesByBusinessOwner = async (ownerId, options = {}) => {
+	const { page = 1, pageSize = 20 } = options;
 	// Get business owner info
 	const owner = await BusinessOwner.findById(ownerId).lean();
 	if (!owner) {
@@ -677,6 +678,7 @@ const getEasyInvoicesByBusinessOwner = async (ownerId) => {
 	const easyInvoiceAccount = owner.easyInvoiceInfo.account;
 	const easyInvoicePassword = owner.easyInvoiceInfo.password;
 	const easyInvoiceSerial = owner.easyInvoiceInfo.serial;
+	const easyInvoiceApiUrl = owner.easyInvoiceInfo.apiUrl;
 
 	if (!easyInvoiceAccount || !easyInvoicePassword || !easyInvoiceSerial) {
 		throw new ApiError(
@@ -723,6 +725,9 @@ const getEasyInvoicesByBusinessOwner = async (ownerId) => {
 		easyInvoiceAccount,
 		easyInvoicePassword,
 		easyInvoiceSerial,
+		easyInvoiceApiUrl,
+		page,
+		pageSize,
 	);
 
 	return {
@@ -760,6 +765,7 @@ const viewInvoiceByBusinessOwner = async (
 	const easyInvoiceAccount = owner.easyInvoiceInfo.account;
 	const easyInvoicePassword = owner.easyInvoiceInfo.password;
 	const easyInvoiceSerial = owner.easyInvoiceInfo.serial;
+	const easyInvoiceApiUrl = owner.easyInvoiceInfo.apiUrl;
 
 	if (!easyInvoiceAccount || !easyInvoicePassword || !easyInvoiceSerial) {
 		throw new ApiError(
@@ -777,6 +783,7 @@ const viewInvoiceByBusinessOwner = async (
 		easyInvoiceAccount,
 		easyInvoicePassword,
 		easyInvoiceSerial,
+		easyInvoiceApiUrl,
 	);
 
 	return {

@@ -63,7 +63,7 @@ const isEasyInvoiceSuccess = (result) => Number(result?.Status) === 1;
 
 export const getInvoiceByArisingDateRange = async (req, res, next) => {
 	try {
-		const { FromDate, ToDate } = req.body;
+		const { FromDate, ToDate, Page, PageSize } = req.body;
 		const userId = req.user.userId;
 		const owner = await getBusinessOwnerByUserId(userId);
 		if (!owner) {
@@ -85,6 +85,7 @@ export const getInvoiceByArisingDateRange = async (req, res, next) => {
 		const easyInvoiceAccount = owner.easyInvoiceInfo.account;
 		const easyInvoicePassword = owner.easyInvoiceInfo.password;
 		const easyInvoiceSerial = owner.easyInvoiceInfo.serial;
+		const easyInvoiceApiUrl = owner.easyInvoiceInfo.apiUrl;
 
 		if (!easyInvoiceAccount || !easyInvoicePassword || !easyInvoiceSerial) {
 			return res.status(StatusCodes.BAD_REQUEST).json({
@@ -103,6 +104,9 @@ export const getInvoiceByArisingDateRange = async (req, res, next) => {
 			easyInvoiceAccount,
 			easyInvoicePassword,
 			easyInvoiceSerial,
+			easyInvoiceApiUrl,
+			Page,
+			PageSize,
 		);
 		res.status(StatusCodes.OK).json({ success: true, data: result });
 	} catch (error) {
@@ -154,6 +158,7 @@ export const importInvoice = async (req, res, next) => {
 		);
 		const easyInvoiceSerial = owner.easyInvoiceInfo.serial;
 		console.log("🚀 ~ importInvoice ~ easyInvoiceSerial:", easyInvoiceSerial);
+		const easyInvoiceApiUrl = owner.easyInvoiceInfo.apiUrl;
 
 		if (!easyInvoiceAccount || !easyInvoicePassword || !easyInvoiceSerial) {
 			return res.status(StatusCodes.BAD_REQUEST).json({
@@ -171,6 +176,7 @@ export const importInvoice = async (req, res, next) => {
 			easyInvoiceAccount,
 			easyInvoicePassword,
 			easyInvoiceSerial,
+			easyInvoiceApiUrl,
 		);
 
 		let savedInvoice = null;
@@ -239,6 +245,7 @@ export const importAndIssueInvoice = async (req, res, next) => {
 		const easyInvoiceAccount = owner.easyInvoiceInfo.account;
 		const easyInvoicePassword = owner.easyInvoiceInfo.password;
 		const easyInvoiceSerial = owner.easyInvoiceInfo.serial;
+		const easyInvoiceApiUrl = owner.easyInvoiceInfo.apiUrl;
 
 		if (!easyInvoiceAccount || !easyInvoicePassword || !easyInvoiceSerial) {
 			return res.status(StatusCodes.BAD_REQUEST).json({
@@ -256,6 +263,7 @@ export const importAndIssueInvoice = async (req, res, next) => {
 			easyInvoiceAccount,
 			easyInvoicePassword,
 			easyInvoiceSerial,
+			easyInvoiceApiUrl,
 		);
 
 		let savedInvoice = null;
@@ -311,6 +319,7 @@ export const cancelInvoice = async (req, res, next) => {
 		const easyInvoiceAccount = owner.easyInvoiceInfo.account;
 		const easyInvoicePassword = owner.easyInvoiceInfo.password;
 		const easyInvoiceSerial = owner.easyInvoiceInfo.serial;
+		const easyInvoiceApiUrl = owner.easyInvoiceInfo.apiUrl;
 
 		if (!easyInvoiceAccount || !easyInvoicePassword || !easyInvoiceSerial) {
 			return res.status(StatusCodes.BAD_REQUEST).json({
@@ -328,6 +337,7 @@ export const cancelInvoice = async (req, res, next) => {
 			easyInvoiceAccount,
 			easyInvoicePassword,
 			easyInvoiceSerial,
+			easyInvoiceApiUrl,
 		);
 		res.status(StatusCodes.OK).json({ success: true, data: result });
 	} catch (error) {
@@ -358,6 +368,7 @@ export const getInvoiceAuto = async (req, res, next) => {
 		const easyInvoiceAccount = owner.easyInvoiceInfo.account;
 		const easyInvoicePassword = owner.easyInvoiceInfo.password;
 		const easyInvoiceSerial = owner.easyInvoiceInfo.serial;
+		const easyInvoiceApiUrl = owner.easyInvoiceInfo.apiUrl;
 
 		if (!easyInvoiceAccount || !easyInvoicePassword || !easyInvoiceSerial) {
 			return res.status(StatusCodes.BAD_REQUEST).json({
@@ -407,6 +418,7 @@ export const getInvoiceAuto = async (req, res, next) => {
 			easyInvoiceAccount,
 			easyInvoicePassword,
 			easyInvoiceSerial,
+			easyInvoiceApiUrl,
 		);
 
 		res.status(StatusCodes.OK).json({
@@ -443,6 +455,7 @@ export const viewInvoice = async (req, res, next) => {
 		const easyInvoiceAccount = owner.easyInvoiceInfo.account;
 		const easyInvoicePassword = owner.easyInvoiceInfo.password;
 		const easyInvoiceSerial = owner.easyInvoiceInfo.serial;
+		const easyInvoiceApiUrl = owner.easyInvoiceInfo.apiUrl;
 
 		if (!easyInvoiceAccount || !easyInvoicePassword || !easyInvoiceSerial) {
 			return res.status(StatusCodes.BAD_REQUEST).json({
@@ -463,6 +476,7 @@ export const viewInvoice = async (req, res, next) => {
 			easyInvoiceAccount,
 			easyInvoicePassword,
 			easyInvoiceSerial,
+			easyInvoiceApiUrl,
 		);
 		res.status(StatusCodes.OK).json({ success: true, data: result });
 	} catch (error) {

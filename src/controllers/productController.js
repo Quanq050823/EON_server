@@ -36,17 +36,6 @@ const create = async (req, res, next) => {
 						}
 					});
 				}
-				if (item.unitConversions && Array.isArray(item.unitConversions)) {
-					item.unitConversions.forEach((conversion) => {
-						if (conversion.to && Array.isArray(conversion.to)) {
-							conversion.to.forEach((subUnit) => {
-								if (subUnit.itemName) {
-									validUnitsSet.add(subUnit.itemName);
-								}
-							});
-						}
-					});
-				}
 			});
 
 			const validUnits = Array.from(validUnitsSet);

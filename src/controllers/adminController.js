@@ -271,7 +271,12 @@ const getTaxStatisticsByBusinessOwner = async (req, res, next) => {
 const getEasyInvoicesByBusinessOwner = async (req, res, next) => {
 	try {
 		const { ownerId } = req.params;
-		const result = await adminService.getEasyInvoicesByBusinessOwner(ownerId);
+		const { page, pageSize } = req.query;
+		const options = {
+			page: parseInt(page) || 1,
+			pageSize: parseInt(pageSize) || 20,
+		};
+		const result = await adminService.getEasyInvoicesByBusinessOwner(ownerId, options);
 		res.status(StatusCodes.OK).json(result);
 	} catch (err) {
 		next(err);
