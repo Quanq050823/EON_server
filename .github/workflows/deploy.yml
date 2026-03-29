@@ -1,11 +1,30 @@
-name: Deploy Node.js to EC2
+name: Deploy Node.js với Docker & Env Pro
 
 on:
   push:
     branches: [main]
 
 jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Login vào Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build và Push Image
+        run: |
+          # Tự động lấy tên username từ secret để build tag
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/eon-server:latest .
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/eon-server:latest
+
   deploy:
+    needs: build-and-push
     runs-on: ubuntu-latest
     steps:
       - name: Deploy via SSH
@@ -15,12 +34,44 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            export NVM_DIR="$HOME/.nvm"
-            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            # 1. Kéo bản mới nhất từ Docker Hub về
+            sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/eon-server:latest
 
-            cd /home/ubuntu/EON_server
+            # 2. Dừng và xóa container cũ (nếu đang chạy)
+            sudo docker rm -f eon-app || true
 
-            git pull origin main
-            npm install
+            # 3. Tạo file .env "tươi" từ GitHub Secrets
+            # (Giúp app của bạn không bị 'undefined' biến môi trường nữa)
+            cat <<EOF > ~/eon_app.env
+            ATLAS_URI=${{ secrets.ATLAS_URI }}
+            ACCESS_TOKEN_EXP=${{ secrets.ACCESS_TOKEN_EXP }}
+            ACCESS_TOKEN_PRIVATE_KEY=${{ secrets.ACCESS_TOKEN_PRIVATE_KEY }}
+            BE_URL=${{ secrets.BE_URL }}
+            ENV=${{ secrets.ENV }}
+            FE_URL=${{ secrets.FE_URL }}
+            HOST=${{ secrets.HOST }}
+            MAIL_ENCRYPTION=${{ secrets.MAIL_ENCRYPTION }}
+            MAIL_FROM_ADDRESS=${{ secrets.MAIL_FROM_ADDRESS }}
+            MAIL_FROM_NAME=${{ secrets.MAIL_FROM_NAME }}
+            MAIL_HOST=${{ secrets.MAIL_HOST }}
+            MAIL_MAILER=${{ secrets.MAIL_MAILER }}
+            MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}
+            MAIL_PORT=${{ secrets.MAIL_PORT }}
+            MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}
+            PORT=3001
+            REFRESH_TOKEN_EXP=${{ secrets.REFRESH_TOKEN_EXP }}
+            REFRESH_TOKEN_PRIVATE_KEY=${{ secrets.REFRESH_TOKEN_PRIVATE_KEY }}
+            SALT=${{ secrets.SALT }}
+            EOF
 
-            pm2 restart eon-server --update-env || pm2 start src/app.js --name "eon-server"
+            # 4. Chạy Container với file Env vừa tạo
+            # Cổng 80 của EC2 sẽ trỏ thẳng vào cổng 3001 của Node.js bên trong Docker
+            sudo docker run -d \
+              --name eon-app \
+              -p 80:3001 \
+              --env-file ~/eon_app.env \
+              --restart always \
+              ${{ secrets.DOCKERHUB_USERNAME }}/eon-server:latest
+
+            # 5. Dọn dẹp các Image cũ không dùng để tiết kiệm bộ nhớ EC2
+            sudo docker image prune -f
