@@ -65,10 +65,10 @@ jobs:
             EOF
 
             # 4. Chạy Container với file Env vừa tạo
-            # Cổng 80 của EC2 sẽ trỏ thẳng vào cổng 3001 của Node.js bên trong Docker
+            # Cổng 3001 của EC2 sẽ trỏ thẳng vào cổng 3001 của Node.js bên trong Docker
             sudo docker run -d \
               --name eon-app \
-              -p 80:3001 \
+              -p 3001:3001 \
               --env-file ~/eon_app.env \
               --restart always \
               ${{ secrets.DOCKERHUB_USERNAME }}/eon-server:latest
