@@ -177,6 +177,102 @@ export const cancelInvoice = async (
 	}
 };
 
+export const removeUnsignedInvoice = async (
+	Ikey,
+	Pattern,
+	Serial,
+	easyInvoiceAccount,
+	easyInvoicePassword,
+	easyInvoiceSerial,
+	easyInvoiceApiUrl,
+) => {
+	try {
+		const baseUrl = easyInvoiceApiUrl || config.easyInvoice.apiUrl;
+		const url = `${baseUrl}/api/business/removeUnsignedInvoice`;
+		console.log("EasyInvoice API URL:", url);
+		const headers = {
+			...getAuthHeaders(
+				"POST",
+				easyInvoiceAccount,
+				easyInvoicePassword,
+				easyInvoiceSerial,
+			),
+		};
+		const body = {
+			Ikey,
+			Pattern,
+			Serial,
+		};
+		const response = await axios.post(url, body, { headers });
+		return response.data;
+	} catch (error) {
+		console.error("EasyInvoice Error:", error.response?.data || error.message);
+		const statusCode =
+			error.response?.status || StatusCodes.INTERNAL_SERVER_ERROR;
+		const errorMessage =
+			error.response?.data?.message || error.response?.data || error.message;
+		throw new ApiError(
+			statusCode,
+			`Failed to remove unsigned invoice: ${
+				typeof errorMessage === "object"
+					? JSON.stringify(errorMessage)
+					: errorMessage
+			}`,
+		);
+	}
+};
+
+export const adjustInvoice = async (
+	XmlData,
+	Ikey,
+	Pattern,
+	Serial,
+	RelatedInvoice,
+	easyInvoiceAccount,
+	easyInvoicePassword,
+	easyInvoiceSerial,
+	easyInvoiceApiUrl,
+) => {
+	try {
+		const baseUrl = easyInvoiceApiUrl || config.easyInvoice.apiUrl;
+		const url = `${baseUrl}/api/business/adjustInvoice`;
+		console.log("EasyInvoice API URL:", url);
+		const headers = {
+			...getAuthHeaders(
+				"POST",
+				easyInvoiceAccount,
+				easyInvoicePassword,
+				easyInvoiceSerial,
+			),
+		};
+
+		const body = {
+			XmlData,
+			Ikey,
+			Pattern,
+			Serial,
+			RelatedInvoice,
+		};
+
+		const response = await axios.post(url, body, { headers });
+		return response.data;
+	} catch (error) {
+		console.error("EasyInvoice Error:", error.response?.data || error.message);
+		const statusCode =
+			error.response?.status || StatusCodes.INTERNAL_SERVER_ERROR;
+		const errorMessage =
+			error.response?.data?.message || error.response?.data || error.message;
+		throw new ApiError(
+			statusCode,
+			`Failed to adjust invoice: ${
+				typeof errorMessage === "object"
+					? JSON.stringify(errorMessage)
+					: errorMessage
+			}`,
+		);
+	}
+};
+
 export const viewInvoice = async (
 	Ikey,
 	Pattern,

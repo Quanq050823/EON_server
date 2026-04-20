@@ -345,6 +345,144 @@ export const cancelInvoice = async (req, res, next) => {
 	}
 };
 
+export const removeUnsignedInvoice = async (req, res, next) => {
+	try {
+		const { Ikey, Pattern, Serial } = req.body;
+
+		if (!Ikey) {
+			return res.status(StatusCodes.BAD_REQUEST).json({
+				message: "Ikey is required",
+			});
+		}
+
+		const userId = req.user.userId;
+		const owner = await getBusinessOwnerByUserId(userId);
+		if (!owner) {
+			return res
+				.status(StatusCodes.NOT_FOUND)
+				.json({ message: "Business owner profile not found" });
+		}
+
+		if (
+			!owner.easyInvoiceInfo ||
+			typeof owner.easyInvoiceInfo !== "object" ||
+			Object.keys(owner.easyInvoiceInfo).length === 0
+		) {
+			return res.status(StatusCodes.BAD_REQUEST).json({
+				message: "EasyInvoice configuration not found for this business owner",
+			});
+		}
+
+		const easyInvoiceAccount = owner.easyInvoiceInfo.account;
+		const easyInvoicePassword = owner.easyInvoiceInfo.password;
+		const easyInvoiceSerial = owner.easyInvoiceInfo.serial;
+		const easyInvoiceApiUrl = owner.easyInvoiceInfo.apiUrl;
+
+		if (!easyInvoiceAccount || !easyInvoicePassword || !easyInvoiceSerial) {
+			return res.status(StatusCodes.BAD_REQUEST).json({
+				message: "Missing required EasyInvoice credentials",
+				details: {
+					hasAccount: !!easyInvoiceAccount,
+					hasPassword: !!easyInvoicePassword,
+					hasSerial: !!easyInvoiceSerial,
+				},
+			});
+		}
+
+		const result = await easyInvoiceService.removeUnsignedInvoice(
+			Ikey,
+			Pattern,
+			Serial,
+			easyInvoiceAccount,
+			easyInvoicePassword,
+			easyInvoiceSerial,
+			easyInvoiceApiUrl,
+		);
+
+		res.status(StatusCodes.OK).json({ success: true, data: result });
+	} catch (error) {
+		next(new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, error.message));
+	}
+};
+
+export const adjustInvoice = async (req, res, next) => {
+	try {
+		let { XmlData, Ikey, Pattern, Serial, RelatedInvoice, invoiceData } = req.body;
+		const normalizedInvoiceData = normalizeInvoiceData(invoiceData);
+
+		// Support both XmlData and invoiceData for adjustment flow
+		if (!XmlData && normalizedInvoiceData) {
+			XmlData = buildInvoiceXML(normalizedInvoiceData);
+		}
+
+		if (!XmlData) {
+			return res.status(StatusCodes.BAD_REQUEST).json({
+				message: "Either XmlData or invoiceData is required",
+			});
+		}
+
+		if (!Ikey && !RelatedInvoice) {
+			return res.status(StatusCodes.BAD_REQUEST).json({
+				message: "Either Ikey or RelatedInvoice is required",
+			});
+		}
+
+		const userId = req.user.userId;
+		const owner = await getBusinessOwnerByUserId(userId);
+		if (!owner) {
+			return res
+				.status(StatusCodes.NOT_FOUND)
+				.json({ message: "Business owner profile not found" });
+		}
+
+		if (
+			!owner.easyInvoiceInfo ||
+			typeof owner.easyInvoiceInfo !== "object" ||
+			Object.keys(owner.easyInvoiceInfo).length === 0
+		) {
+			return res.status(StatusCodes.BAD_REQUEST).json({
+				message: "EasyInvoice configuration not found for this business owner",
+			});
+		}
+
+		const easyInvoiceAccount = owner.easyInvoiceInfo.account;
+		const easyInvoicePassword = owner.easyInvoiceInfo.password;
+		const easyInvoiceSerial = owner.easyInvoiceInfo.serial;
+		const easyInvoiceApiUrl = owner.easyInvoiceInfo.apiUrl;
+
+		if (!easyInvoiceAccount || !easyInvoicePassword || !easyInvoiceSerial) {
+			return res.status(StatusCodes.BAD_REQUEST).json({
+				message: "Missing required EasyInvoice credentials",
+				details: {
+					hasAccount: !!easyInvoiceAccount,
+					hasPassword: !!easyInvoicePassword,
+					hasSerial: !!easyInvoiceSerial,
+				},
+			});
+		}
+
+		const result = await easyInvoiceService.adjustInvoice(
+			XmlData,
+			Ikey,
+			Pattern,
+			Serial,
+			RelatedInvoice,
+			easyInvoiceAccount,
+			easyInvoicePassword,
+			easyInvoiceSerial,
+			easyInvoiceApiUrl,
+		);
+
+		res.status(StatusCodes.OK).json({
+			success: true,
+			data: result,
+			invoiceData: normalizedInvoiceData,
+		});
+	} catch (error) {
+		next(new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, error.message));
+	}
+};
+
 export const getInvoiceAuto = async (req, res, next) => {
 	try {
 		const userId = req.user.userId;
