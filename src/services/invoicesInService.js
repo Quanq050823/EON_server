@@ -46,28 +46,33 @@ const getBusinessOwnerByUserId = async (userId) => {
 	return owner;
 };
 
-const splitDateRangeIntoChunks = (startDate, endDate, maxDays) => {
+const splitDateRangeIntoChunks = (startDate, endDate) => {
 	const chunks = [];
-	const start = new Date(startDate);
 	const end = new Date(endDate);
 
-	let currentStart = new Date(start);
+	let currentStart = new Date(startDate);
 
 	while (currentStart <= end) {
-		let currentEnd = new Date(currentStart);
-		currentEnd.setDate(currentEnd.getDate() + maxDays - 1);
+		// Cuối tháng của currentStart
+		const monthEnd = new Date(
+			currentStart.getFullYear(),
+			currentStart.getMonth() + 1,
+			0, // ngày 0 của tháng kế = ngày cuối tháng hiện tại
+		);
 
-		if (currentEnd > end) {
-			currentEnd = new Date(end);
-		}
+		const currentEnd = monthEnd < end ? monthEnd : new Date(end);
 
 		chunks.push({
 			from: currentStart.toISOString().split("T")[0],
 			to: currentEnd.toISOString().split("T")[0],
 		});
 
-		currentStart = new Date(currentEnd);
-		currentStart.setDate(currentStart.getDate() + 1);
+		// Sang tháng kế
+		currentStart = new Date(
+			currentEnd.getFullYear(),
+			currentEnd.getMonth() + 1,
+			1,
+		);
 	}
 
 	return chunks;
@@ -172,29 +177,55 @@ const syncInvoicesFromThirdParty = async (userId, datefrom, dateto) => {
 	return { sync, skip, fail };
 };
 
-const syncListInvoicesDetailsFromThirdParty = async (userId) => {
-	const owner = await getBusinessOwnerByUserId(userId);
-	try {
-		await axios.post(
-			`${API_BASE_URL}/login_tct_client`,
-			{ username: owner.taxCode, password: owner.password },
+const GDT_INVOICE_BASE = "https://hoadondientu.gdt.gov.vn:30000";
+const GDT_PAGE_SIZE = 40;
+
+const fetchInvoicesFromGDT = async (gdtToken, dateFrom, dateTo) => {
+	const formatGDTDate = (dateStr, endOfDay = false) => {
+		const [year, month, day] = dateStr.split("-");
+		const time = endOfDay ? "T23:59:59" : "T00:00:00";
+		return `${day}/${month}/${year}${time}`;
+	};
+
+	const startStr = formatGDTDate(dateFrom);
+	const endStr = formatGDTDate(dateTo, true);
+	const search = `tdlap=ge=${startStr};tdlap=le=${endStr};ttxly==5`;
+     
+	let page = 0;
+	const allInvoices = [];
+
+	while (true) {
+		const response = await axios.get(
+			`${GDT_INVOICE_BASE}/query/invoices/purchase`,
 			{
 				headers: {
-					Authorization: `Bearer ${THIRD_PARTY_TOKEN}`,
+					Authorization: `Bearer ${gdtToken}`,
 					"Content-Type": "application/json",
 				},
+				params: { sort: "tdlap:desc", size: GDT_PAGE_SIZE, page, search },
+				timeout: 30000,
 			},
 		);
-	} catch (error) {
-		console.error(
-			"Error occurred while logging in to third-party client:",
-			error,
-		);
-		throw new ApiError(
-			StatusCodes.INTERNAL_SERVER_ERROR,
-			"Failed to log in to third-party client",
-		);
+
+		const data = response.data;
+		const items = Array.isArray(data?.datas)
+			? data.datas
+			: Array.isArray(data?.content)
+				? data.content
+				: [];
+
+		allInvoices.push(...items);
+
+		if (items.length < GDT_PAGE_SIZE) break;
+		page++;
 	}
+
+	return allInvoices;
+};
+
+const syncListInvoicesDetailsFromThirdParty = async (userId, gdtToken) => {
+	const owner = await getBusinessOwnerByUserId(userId);
+
 	const latestInvoice = await InvoicesIn.findOne({ ownerId: owner._id })
 		.sort({ ncnhat: -1 })
 		.select("ncnhat");
@@ -223,72 +254,55 @@ const syncListInvoicesDetailsFromThirdParty = async (userId) => {
 
 	const finalDateTo = new Date().toISOString().split("T")[0];
 
-	const dateChunks = splitDateRangeIntoChunks(
-		finalDateFrom,
-		finalDateTo,
-		MAX_DAYS_PER_REQUEST,
-	);
+	const dateChunks = splitDateRangeIntoChunks(finalDateFrom, finalDateTo);
+
+	console.log("=== [TEST] syncListInvoicesDetailsFromThirdParty ===");
+	console.log(`finalDateFrom : ${finalDateFrom}`);
+	console.log(`finalDateTo   : ${finalDateTo}`);
+	console.log(`Total chunks  : ${dateChunks.length}`);
+	dateChunks.forEach((chunk, i) => {
+		console.log(`  Chunk[${i}] from=${chunk.from}  to=${chunk.to}`);
+	});
+	console.log("====================================================");
 
 	let totalSync = 0,
 		totalSkip = 0,
 		totalFail = 0;
-	const allInvoiceDetailsList = [];
 	const processedChunks = [];
 
-	// Xử lý từng chunk
 	for (const chunk of dateChunks) {
 		console.log(`Processing chunk: from ${chunk.from} to ${chunk.to}`);
 
 		try {
-			const invoices = await fetchInvoicesFromThirdParty(
+			const invoices = await fetchInvoicesFromGDT(
+				gdtToken,
 				chunk.from,
 				chunk.to,
-				owner.taxCode,
 			);
 
-			console.log(`Found ${invoices.length} invoices in chunk`);
+			console.log(`Found ${invoices.length} invoices in chunk [${chunk.from} → ${chunk.to}]`);
+			invoices.forEach((inv, i) => {
+				console.log(`  → [${i}] nbmst=${inv.nbmst} khhdon=${inv.khhdon} shdon=${inv.shdon} khmshdon=${inv.khmshdon}`);
+			});
 
 			let chunkSync = 0,
 				chunkSkip = 0,
 				chunkFail = 0;
 
-			for (const invoice of invoices) {
-				const invoiceInfo = {
-					nbmst: invoice.nbmst,
-					khhdon: invoice.khhdon,
-					shdon: invoice.shdon,
-					khmshdon: invoice.khmshdon,
-				};
-				allInvoiceDetailsList.push(invoiceInfo);
-
+			for (const [idx, invoice] of invoices.entries()) {
+				const invoiceLabel = `[${chunk.from}~${chunk.to}] Invoice[${idx}] nbmst=${invoice.nbmst} khhdon=${invoice.khhdon} shdon=${invoice.shdon}`;
 				try {
-					const detailResponse = await fetchInvoiceDetailFromThirdParty(
-						invoice.nbmst,
-						invoice.khhdon,
-						invoice.shdon,
-						invoice.khmshdon,
-						owner.taxCode,
-					);
-
-					const invoiceDetailArr = detailResponse?.result;
-					if (
-						!Array.isArray(invoiceDetailArr) ||
-						invoiceDetailArr.length === 0
-					) {
-						chunkFail++;
-						continue;
-					}
-
-					const invoiceDetail = invoiceDetailArr[0];
-					const data = { ...invoiceDetail, ownerId: owner._id };
-
+					const data = { ...invoice, ownerId: owner._id };
 					await createInvoice(data);
 					chunkSync++;
+					console.log(`  ✔ SAVED   ${invoiceLabel}`);
 				} catch (err) {
 					if (err?.message?.includes("already exists")) {
 						chunkSkip++;
+						console.log(`  ~ SKIP    ${invoiceLabel}`);
 					} else {
 						chunkFail++;
+						console.error(`  ✘ FAIL    ${invoiceLabel} | ${err.message}`);
 					}
 				}
 			}
@@ -309,6 +323,8 @@ const syncListInvoicesDetailsFromThirdParty = async (userId) => {
 			console.log(
 				`Chunk completed: sync=${chunkSync}, skip=${chunkSkip}, fail=${chunkFail}`,
 			);
+
+			await new Promise((resolve) => setTimeout(resolve, 700));
 		} catch (err) {
 			console.error(
 				`Error processing chunk ${chunk.from} to ${chunk.to}:`,
@@ -326,7 +342,6 @@ const syncListInvoicesDetailsFromThirdParty = async (userId) => {
 		sync: totalSync,
 		skip: totalSkip,
 		fail: totalFail,
-		invoiceDetailsList: allInvoiceDetailsList,
 		dateFrom: finalDateFrom,
 		dateTo: finalDateTo,
 		chunksProcessed: processedChunks.length,
