@@ -33,6 +33,20 @@ router.post(
 	easyInvoiceController.cancelInvoice,
 );
 
+router.post(
+	"/remove-unsigned-invoice",
+	authenticate,
+	authorization(["user", "admin"]),
+	easyInvoiceController.removeUnsignedInvoice,
+);
+
+router.post(
+	"/adjustInvoice",
+	authenticate,
+	authorization(["user", "admin"]),
+	easyInvoiceController.adjustInvoice,
+);
+
 router.get(
 	"/getInvoiceAuto",
 	authenticate,

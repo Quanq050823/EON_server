@@ -18,8 +18,17 @@ export const syncInvoicesFromThirdParty = async (req, res) => {
 export const syncListInvoicesDetailsFromThirdParty = async (req, res) => {
 	try {
 		const userId = req.user.userId;
+		const { gdtToken } = req.body;
+
+		if (!gdtToken) {
+			return res.status(400).json({ error: "gdtToken là bắt buộc" });
+		}
+
 		const result =
-			await InvoicesInService.syncListInvoicesDetailsFromThirdParty(userId);
+			await InvoicesInService.syncListInvoicesDetailsFromThirdParty(
+				userId,
+				gdtToken,
+			);
 		res.status(200).json(result);
 	} catch (error) {
 		res.status(error.statusCode || 500).json({ error: error.message });
