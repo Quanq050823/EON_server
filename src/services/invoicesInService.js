@@ -223,6 +223,21 @@ const fetchInvoicesFromGDT = async (gdtToken, dateFrom, dateTo) => {
 	return allInvoices;
 };
 
+const fetchInvoiceDetailFromGDT = async (gdtToken, nbmst, khhdon, shdon, khmshdon) => {
+	const response = await axios.get(
+		`${GDT_INVOICE_BASE}/query/invoices/detail`,
+		{
+			headers: {
+				Authorization: `Bearer ${gdtToken}`,
+				"Content-Type": "application/json",
+			},
+			params: { nbmst, khhdon, shdon, khmshdon },
+			timeout: 30000,
+		},
+	);
+	return response.data;
+};
+
 const syncListInvoicesDetailsFromThirdParty = async (userId, gdtToken) => {
 	const owner = await getBusinessOwnerByUserId(userId);
 
@@ -293,9 +308,29 @@ const syncListInvoicesDetailsFromThirdParty = async (userId, gdtToken) => {
 				const invoiceLabel = `[${chunk.from}~${chunk.to}] Invoice[${idx}] nbmst=${invoice.nbmst} khhdon=${invoice.khhdon} shdon=${invoice.shdon}`;
 				try {
 					const data = { ...invoice, ownerId: owner._id };
-					await createInvoice(data);
-					chunkSync++;
+					const saved = await createInvoice(data);
 					console.log(`  ✔ SAVED   ${invoiceLabel}`);
+
+					// Fetch product detail (hdhhdvu) and update
+					try {
+						const detail = await fetchInvoiceDetailFromGDT(
+							gdtToken,
+							invoice.nbmst,
+							invoice.khhdon,
+							invoice.shdon,
+							invoice.khmshdon,
+						);
+						if (Array.isArray(detail?.hdhhdvu) && detail.hdhhdvu.length > 0) {
+							await InvoicesIn.findByIdAndUpdate(saved._id, { hdhhdvu: detail.hdhhdvu });
+							console.log(`    ↳ DETAIL saved (${detail.hdhhdvu.length} items) ${invoiceLabel}`);
+						} else {
+							console.log(`    ↳ DETAIL empty/no hdhhdvu ${invoiceLabel}`);
+						}
+					} catch (detailErr) {
+						console.error(`    ↳ DETAIL FAIL ${invoiceLabel} | ${detailErr.message}`);
+					}
+
+					chunkSync++;
 				} catch (err) {
 					if (err?.message?.includes("already exists")) {
 						chunkSkip++;
