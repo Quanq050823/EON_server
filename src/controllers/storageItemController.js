@@ -3,14 +3,14 @@
 import * as storageItemService from "../services/storageItemService.js";
 import InvoicesInService from "../services/invoicesInService.js";
 import { StatusCodes } from "http-status-codes";
+import SyncHistory from "../models/SyncHistory.js";
+import StockLog from "../models/StockLog.js";
 
 import { getBusinessOwnerByUserId } from "../services/businessOwnerService.js";
 
 const create = async (req, res, next) => {
 	try {
-		// Assume req.user._id is set by auth middleware
 		const userId = req.user.userId;
-		console.log("User ID:", userId); // Debugging line
 		const owner = await getBusinessOwnerByUserId(userId);
 		if (!owner) {
 			return res
@@ -21,6 +21,19 @@ const create = async (req, res, next) => {
 			req.body,
 			owner._id,
 		);
+		// Lưu log tồn kho thủ công
+		StockLog.create({
+			businessOwnerId: owner._id,
+			storageItemId: result._id,
+			itemName: result.name,
+			unit: result.unit,
+			quantityChanged: result.stock ?? 0,
+			stockAfter: result.stock ?? 0,
+			pricePerUnit: result.price ?? 0,
+			source: "manual_add",
+			label: "Thêm tồn kho",
+			triggeredBy: userId,
+		}).catch((e) => console.error("StockLog create error:", e));
 		res.status(StatusCodes.CREATED).json(result);
 	} catch (err) {
 		next(err);
@@ -129,6 +142,18 @@ const listNewSyncItem = async (req, res, next) => {
 	}
 };
 
+const TRACKED_FIELDS = ["name", "unit", "stock", "price"];
+
+const buildChanges = (oldItem, body) => {
+	const changes = [];
+	for (const field of TRACKED_FIELDS) {
+		if (body[field] !== undefined && String(body[field]) !== String(oldItem[field])) {
+			changes.push({ field, oldValue: oldItem[field], newValue: body[field] });
+		}
+	}
+	return changes;
+};
+
 const update = async (req, res, next) => {
 	try {
 		const userId = req.user.userId;
@@ -138,11 +163,33 @@ const update = async (req, res, next) => {
 				.status(StatusCodes.NOT_FOUND)
 				.json({ message: "Business owner profile not found" });
 		}
+		// Lấy doc cũ để so sánh
+		const oldItem = await storageItemService.getStorageItemById(
+			req.params.id,
+			owner._id,
+		);
 		const result = await storageItemService.updateStorageItem(
 			req.params.id,
 			req.body,
 			owner._id,
 		);
+		// Tính diff và lưu log
+		const changes = oldItem ? buildChanges(oldItem, req.body) : [];
+		if (changes.length > 0) {
+			StockLog.create({
+				businessOwnerId: owner._id,
+				storageItemId: result._id,
+				itemName: result.name,
+				unit: result.unit,
+				quantityChanged: req.body.stock,
+				stockAfter: result.stock,
+				pricePerUnit: result.price ?? 0,
+				source: "manual_update",
+				label: "Cập nhật tồn kho",
+				changes,
+				triggeredBy: userId,
+			}).catch((e) => console.error("StockLog update error:", e));
+		}
 		res.status(StatusCodes.OK).json(result);
 	} catch (err) {
 		next(err);
@@ -203,8 +250,11 @@ const syncStorageItems = async (req, res, next) => {
 
 		let successCount = 0;
 		let failCount = 0;
+		const syncedItems = [];
+		const invoicesProcessed = [];
 
 		for (const invoice of invoices) {
+			invoicesProcessed.push(invoice.shdon || invoice._id?.toString());
 			if (Array.isArray(invoice.hdhhdvu)) {
 				for (const item of invoice.hdhhdvu) {
 					const data = {
@@ -215,11 +265,12 @@ const syncStorageItems = async (req, res, next) => {
 					};
 					try {
 						const existingItems = await storageItemService.listStorageItems(
-							owner._id, // <-- FIXED: owner._id first
-							{ name: data.name }, // filter
-							{ limit: 1 }, // options
+							owner._id,
+							{ name: data.name },
+							{ limit: 1 },
 						);
 
+						let action = "created";
 						if (existingItems.data.length > 0) {
 							const existingItem = existingItems.data[0];
 							await storageItemService.updateStorageItem(
@@ -227,9 +278,20 @@ const syncStorageItems = async (req, res, next) => {
 								{ stock: existingItem.stock + data.stock },
 								owner._id,
 							);
+							action = "updated";
 						} else {
 							await storageItemService.createStorageItem(data, owner._id);
 						}
+						syncedItems.push({
+							name: data.name,
+							unit: data.unit,
+							stock: data.stock,
+							price: data.price,
+							action,
+							invoiceNumber: invoice.shdon || "",
+							invoiceDate: invoice.ntao || invoice.createdAt,
+							sellerName: invoice.nbten || "",
+						});
 						successCount++;
 					} catch (err) {
 						failCount++;
@@ -249,6 +311,18 @@ const syncStorageItems = async (req, res, next) => {
 					err,
 				);
 			}
+		}
+
+		// Lưu lịch sử đồng bộ
+		if (syncedItems.length > 0 || failCount > 0) {
+			await SyncHistory.create({
+				businessOwnerId: owner._id,
+				triggeredBy: userId,
+				successCount,
+				failCount,
+				invoicesProcessed,
+				items: syncedItems,
+			});
 		}
 
 		res.status(200).json({
@@ -412,6 +486,74 @@ const getByIdFromBody = async (req, res, next) => {
 	}
 };
 
+const getStockLogs = async (req, res, next) => {
+	try {
+		const userId = req.user.userId;
+		const owner = await getBusinessOwnerByUserId(userId);
+		if (!owner) {
+			return res
+				.status(StatusCodes.NOT_FOUND)
+				.json({ message: "Business owner profile not found" });
+		}
+
+		const page = parseInt(req.query.page) || 1;
+		const limit = parseInt(req.query.limit) || 50;
+		const skip = (page - 1) * limit;
+
+		const [logs, total] = await Promise.all([
+			StockLog.find({ businessOwnerId: owner._id })
+				.sort({ createdAt: -1 })
+				.skip(skip)
+				.limit(limit)
+				.lean(),
+			StockLog.countDocuments({ businessOwnerId: owner._id }),
+		]);
+
+		res.status(StatusCodes.OK).json({
+			data: logs,
+			total,
+			page,
+			totalPages: Math.ceil(total / limit),
+		});
+	} catch (error) {
+		next(error);
+	}
+};
+
+const getSyncHistory = async (req, res, next) => {
+	try {
+		const userId = req.user.userId;
+		const owner = await getBusinessOwnerByUserId(userId);
+		if (!owner) {
+			return res
+				.status(StatusCodes.NOT_FOUND)
+				.json({ message: "Business owner profile not found" });
+		}
+
+		const page = parseInt(req.query.page) || 1;
+		const limit = parseInt(req.query.limit) || 20;
+		const skip = (page - 1) * limit;
+
+		const [records, total] = await Promise.all([
+			SyncHistory.find({ businessOwnerId: owner._id })
+				.sort({ createdAt: -1 })
+				.skip(skip)
+				.limit(limit)
+				.lean(),
+			SyncHistory.countDocuments({ businessOwnerId: owner._id }),
+		]);
+
+		res.status(StatusCodes.OK).json({
+			data: records,
+			total,
+			page,
+			totalPages: Math.ceil(total / limit),
+		});
+	} catch (error) {
+		next(error);
+	}
+};
+
 export {
 	create,
 	getById,
@@ -422,6 +564,8 @@ export {
 	remove,
 	namesAndUnits,
 	syncStorageItems,
+	getSyncHistory,
+	getStockLogs,
 	genTypeItem,
 	updateUnitConversion,
 	getIdByName,

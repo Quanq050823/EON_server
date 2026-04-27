@@ -48,6 +48,18 @@ router.get(
 	storageItemController.getByIdFromBody
 );
 router.get(
+	"/sync-history",
+	authenticate,
+	authorization(["user", "admin"]),
+	storageItemController.getSyncHistory
+);
+router.get(
+	"/stock-logs",
+	authenticate,
+	authorization(["user", "admin"]),
+	storageItemController.getStockLogs
+);
+router.get(
 	"/:id",
 	authenticate,
 	authorization(["user", "admin"]),

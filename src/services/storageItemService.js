@@ -6,6 +6,16 @@ import ApiError from "../utils/ApiError.js";
 import { StatusCodes } from "http-status-codes";
 
 const createStorageItem = async (data, businessOwnerId) => {
+	const existing = await StorageItem.findOne({
+		name: { $regex: new RegExp(`^${data.name.trim()}$`, "i") },
+		businessOwnerId,
+	});
+	if (existing) {
+		throw new ApiError(
+			StatusCodes.CONFLICT,
+			`Nguyên liệu "${data.name}" đã tồn tại`
+		);
+	}
 	const item = new StorageItem({ ...data, businessOwnerId });
 	await item.save();
 	return item;
@@ -35,7 +45,8 @@ const listStorageItems = async (businessOwnerId, filter = {}, options = {}) => {
 const updateStorageItem = async (id, data, businessOwnerId) => {
 	const item = await StorageItem.findOneAndUpdate(
 		{ _id: id, businessOwnerId },
-		data
+		data,
+		{ new: true }
 	);
 	if (!item)
 		throw new ApiError(StatusCodes.NOT_FOUND, "Storage item not found");
