@@ -205,10 +205,28 @@ const remove = async (req, res, next) => {
 				.status(StatusCodes.NOT_FOUND)
 				.json({ message: "Business owner profile not found" });
 		}
+		const oldItem = await storageItemService.getStorageItemById(
+			req.params.id,
+			owner._id,
+		);
 		const result = await storageItemService.deleteStorageItem(
 			req.params.id,
 			owner._id,
 		);
+		if (oldItem) {
+			StockLog.create({
+				businessOwnerId: owner._id,
+				storageItemId: oldItem._id,
+				itemName: oldItem.name,
+				unit: oldItem.unit,
+				quantityChanged: oldItem.stock ?? 0,
+				stockAfter: 0,
+				pricePerUnit: oldItem.price ?? 0,
+				source: "manual_delete",
+				label: "Xoá khỏi kho",
+				triggeredBy: userId,
+			}).catch((e) => console.error("StockLog delete error:", e));
+		}
 		res.status(StatusCodes.OK).json(result);
 	} catch (err) {
 		next(err);
@@ -520,6 +538,82 @@ const getStockLogs = async (req, res, next) => {
 	}
 };
 
+const getStockSummary = async (req, res, next) => {
+	try {
+		const userId = req.user.userId;
+		const owner = await getBusinessOwnerByUserId(userId);
+		if (!owner) {
+			return res
+				.status(StatusCodes.NOT_FOUND)
+				.json({ message: "Business owner profile not found" });
+		}
+
+		const { startDate, endDate } = req.query;
+		const matchStage = { businessOwnerId: owner._id };
+		if (startDate || endDate) {
+			matchStage.createdAt = {};
+			if (startDate) matchStage.createdAt.$gte = new Date(startDate);
+			if (endDate) matchStage.createdAt.$lte = new Date(endDate);
+		}
+
+		const pipeline = [
+			{ $match: matchStage },
+			{
+				$addFields: {
+					stockDelta: {
+						$switch: {
+							branches: [
+								{ case: { $eq: ["$source", "manual_add"] }, then: { $ifNull: ["$quantityChanged", 0] } },
+								{ case: { $eq: ["$source", "manual_delete"] }, then: { $multiply: [{ $ifNull: ["$quantityChanged", 0] }, -1] } },
+							],
+							default: 0,
+						},
+					},
+				},
+			},
+			{
+				$group: {
+					_id: "$storageItemId",
+					itemName: { $last: "$itemName" },
+					unit: { $last: { $ifNull: ["$unit", ""] } },
+					totalAdded: {
+						$sum: { $cond: [{ $eq: ["$source", "manual_add"] }, { $ifNull: ["$quantityChanged", 0] }, 0] },
+					},
+					totalDeleted: {
+						$sum: { $cond: [{ $eq: ["$source", "manual_delete"] }, { $ifNull: ["$quantityChanged", 0] }, 0] },
+					},
+					netChange: { $sum: "$stockDelta" },
+					countAdd: { $sum: { $cond: [{ $eq: ["$source", "manual_add"] }, 1, 0] } },
+					countUpdate: { $sum: { $cond: [{ $eq: ["$source", "manual_update"] }, 1, 0] } },
+					countDelete: { $sum: { $cond: [{ $eq: ["$source", "manual_delete"] }, 1, 0] } },
+					lastActivity: { $max: "$createdAt" },
+				},
+			},
+			{
+				$project: {
+					_id: 0,
+					storageItemId: { $toString: "$_id" },
+					itemName: 1,
+					unit: 1,
+					totalAdded: 1,
+					totalDeleted: 1,
+					netChange: 1,
+					countAdd: 1,
+					countUpdate: 1,
+					countDelete: 1,
+					lastActivity: 1,
+				},
+			},
+			{ $sort: { lastActivity: -1 } },
+		];
+
+		const summary = await StockLog.aggregate(pipeline);
+		res.status(StatusCodes.OK).json({ data: summary });
+	} catch (error) {
+		next(error);
+	}
+};
+
 const getSyncHistory = async (req, res, next) => {
 	try {
 		const userId = req.user.userId;
@@ -566,6 +660,7 @@ export {
 	syncStorageItems,
 	getSyncHistory,
 	getStockLogs,
+	getStockSummary,
 	genTypeItem,
 	updateUnitConversion,
 	getIdByName,

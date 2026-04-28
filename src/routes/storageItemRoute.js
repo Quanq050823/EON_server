@@ -60,6 +60,12 @@ router.get(
 	storageItemController.getStockLogs
 );
 router.get(
+	"/stock-summary",
+	authenticate,
+	authorization(["user", "admin"]),
+	storageItemController.getStockSummary
+);
+router.get(
 	"/:id",
 	authenticate,
 	authorization(["user", "admin"]),

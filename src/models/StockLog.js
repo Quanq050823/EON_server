@@ -20,7 +20,7 @@ const StockLogSchema = new mongoose.Schema(
 		pricePerUnit: { type: Number },
 		source: {
 			type: String,
-			enum: ["manual_add", "manual_update"],
+			enum: ["manual_add", "manual_update", "manual_delete"],
 			default: "manual_add",
 		},
 		// label hiển thị cho UI
