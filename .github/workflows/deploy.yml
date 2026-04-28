@@ -62,6 +62,7 @@ jobs:
             REFRESH_TOKEN_EXP=${{ secrets.REFRESH_TOKEN_EXP }}
             REFRESH_TOKEN_PRIVATE_KEY=${{ secrets.REFRESH_TOKEN_PRIVATE_KEY }}
             SALT=${{ secrets.SALT }}
+            SERPAPI_KEY=${{ secrets.SERPAPI_KEY }}
             EOF
 
             # 4. Chạy Container với file Env vừa tạo
