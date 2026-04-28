@@ -50,6 +50,7 @@ const config = {
 		username: process.env.EASYINVOICE_USERNAME,
 		password: process.env.EASYINVOICE_PASSWORD,
 	},
+	serpApiKey: process.env.SERPAPI_KEY,
 	env: process.env.ENV,
 };
 
