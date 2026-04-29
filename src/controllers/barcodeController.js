@@ -18,33 +18,76 @@ export const searchBarcodeViaSerpApi = async (req, res, next) => {
 			return res.status(StatusCodes.SERVICE_UNAVAILABLE).json({ message: "SerpApi not configured" });
 		}
 
-		const serpRes = await axios.get("https://serpapi.com/search.json", {
-			params: {
-				engine: "google_shopping",
-				q: barcode,
-				api_key: config.serpApiKey,
-				num: 5,
-				hl: "vi",
-				gl: "vn",
-			},
-			timeout: 10000,
-		});
+		// Run iCheck (direct public API) and Google Shopping in parallel
+		const [iCheckRes, shoppingRes] = await Promise.allSettled([
+			axios.get("https://api-social.icheck.com.vn/api/social/v2/product", {
+				params: {
+					page: 1,
+					pageSize: 5,
+					keyword: barcode,
+				},
+				headers: {
+					"User-Agent": "OptiTax/1.0 (contact@dattax.vn)",
+				},
+				timeout: 10000,
+			}),
+			axios.get("https://serpapi.com/search.json", {
+				params: {
+					engine: "google_shopping",
+					q: barcode,
+					api_key: config.serpApiKey,
+					num: 5,
+					hl: "vi",
+					gl: "vn",
+				},
+				timeout: 10000,
+			}),
+		]);
 
-		const results = serpRes.data?.shopping_results;
-		if (!results || results.length === 0) {
-			return res.status(StatusCodes.NOT_FOUND).json({ message: "No product found for this barcode" });
+		// --- Parse iCheck results ---
+		const iCheckItems = iCheckRes.status === "fulfilled"
+			? (iCheckRes.value.data?.data?.items ?? [])
+			: [];
+		console.log(`[iCheck] barcode="${barcode}" → ${iCheckItems.length} items`);
+		if (iCheckItems.length) {
+			console.log("[iCheck] raw items:", JSON.stringify(iCheckItems, null, 2));
 		}
 
-		// Return top 5 results so the client can let the user pick
-		const products = results.slice(0, 5).map((item) => ({
+		const iCheckProducts = iCheckItems.map((item) => ({
+			name: item.name ?? "",
+			price: item.price ?? 0,
+			imageUrl: item.media?.[0]?.url ?? null,
+			source: "icheck",
+			link: item.code ? `https://icheck.vn/san-pham/${item.code}` : null,
+			rating: item.rating ?? null,
+			brand: item.owner?.name ?? null,
+		}));
+
+		// --- Parse Google Shopping results ---
+		const shoppingResults = shoppingRes.status === "fulfilled"
+			? (shoppingRes.value.data?.shopping_results ?? [])
+			: [];
+		console.log(`[GoogleShopping] barcode="${barcode}" → ${shoppingResults.length} shopping_results`);
+		if (shoppingResults.length) {
+			console.log("[GoogleShopping] raw results:", JSON.stringify(shoppingResults.slice(0, 5), null, 2));
+		}
+
+		const shoppingProducts = shoppingResults.slice(0, 5).map((item) => ({
 			name: item.title ?? "",
 			price: parseFloat(String(item.extracted_price ?? "0").replace(/[^0-9.]/g, "")) || 0,
 			imageUrl: item.thumbnail ?? null,
-			source: "serpapi",
+			source: "google_shopping",
 			link: item.link ?? null,
 			rating: item.rating ?? null,
 			brand: item.source ?? null,
 		}));
+
+		// Merge: iCheck first (most trusted for VN products), then Google Shopping
+		const products = [...iCheckProducts, ...shoppingProducts];
+
+		if (products.length === 0) {
+			return res.status(StatusCodes.NOT_FOUND).json({ message: "No product found for this barcode" });
+		}
 
 		return res.status(StatusCodes.OK).json({ data: products });
 	} catch (error) {
