@@ -99,6 +99,13 @@ router.put(
 	storageItemController.updateUnitConversion
 );
 
+router.post(
+	"/:id/merge",
+	authenticate,
+	authorization(["user", "admin"]),
+	storageItemController.mergeItems
+);
+
 router.delete(
 	"/:id",
 	authenticate,

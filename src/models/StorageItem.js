@@ -25,6 +25,16 @@ const StorageItemSchema = new mongoose.Schema(
 			],
 			isActive: { type: Boolean, default: false },
 		},
+		// Mỗi alias = 1 tên khác của sản phẩm trên hóa đơn, kèm đơn vị và hệ số quy đổi
+		// conversionFactor: 1 [alias.unit] = conversionFactor [master.unit]
+		// Ví dụ: alias {name:"NC DASANI 500ML", unit:"thùng", conversionFactor:24} → 1 thùng = 24 chai
+		syncAliases: [
+			{
+				name: { type: String, required: true },
+				unit: { type: String, required: true },
+				conversionFactor: { type: Number, default: 1 },
+			},
+		],
 		businessOwnerId: {
 			type: mongoose.Schema.Types.ObjectId,
 			ref: "BusinessOwner",

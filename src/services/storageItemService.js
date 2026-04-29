@@ -106,6 +106,71 @@ const getStorageItemByIdFromBody = async (id, businessOwnerId) => {
 	return item;
 };
 
+/**
+ * Gộp duplicate vào master:
+ * - Cộng stock (có quy đổi đơn vị nếu cần)
+ * - Lưu tên + đơn vị + hệ số quy đổi của duplicate vào syncAliases của master
+ * - Xóa duplicate
+ * @param {string} masterId - ID của item master (giữ lại)
+ * @param {string} duplicateId - ID của item sẽ bị xóa
+ * @param {number} conversionFactor - 1 [duplicate.unit] = conversionFactor [master.unit]
+ * @param {string} businessOwnerId
+ */
+const mergeStorageItems = async (masterId, duplicateId, conversionFactor, businessOwnerId) => {
+	if (masterId === duplicateId) {
+		throw new ApiError(StatusCodes.BAD_REQUEST, "Không thể gộp một nguyên liệu với chính nó");
+	}
+
+	const [master, duplicate] = await Promise.all([
+		StorageItem.findOne({ _id: masterId, businessOwnerId }),
+		StorageItem.findOne({ _id: duplicateId, businessOwnerId }),
+	]);
+
+	if (!master) throw new ApiError(StatusCodes.NOT_FOUND, "Nguyên liệu master không tồn tại");
+	if (!duplicate) throw new ApiError(StatusCodes.NOT_FOUND, "Nguyên liệu cần gộp không tồn tại");
+
+	const factor = typeof conversionFactor === "number" && conversionFactor > 0 ? conversionFactor : 1;
+	const addedStock = duplicate.stock * factor;
+
+	// Dedup alias: không thêm nếu tên đã có trong syncAliases hoặc trùng tên master
+	const existingAliasNames = master.syncAliases.map((a) => a.name.toLowerCase());
+	const newAliases = [...master.syncAliases];
+	if (
+		duplicate.name.toLowerCase() !== master.name.toLowerCase() &&
+		!existingAliasNames.includes(duplicate.name.toLowerCase())
+	) {
+		newAliases.push({
+			name: duplicate.name,
+			unit: duplicate.unit,
+			conversionFactor: factor,
+		});
+		// Thêm cả các alias của duplicate vào master (kế thừa chuỗi alias)
+		for (const alias of duplicate.syncAliases) {
+			if (
+				alias.name.toLowerCase() !== master.name.toLowerCase() &&
+				!newAliases.some((a) => a.name.toLowerCase() === alias.name.toLowerCase())
+			) {
+				newAliases.push({
+					name: alias.name,
+					unit: alias.unit,
+					// factor kế thừa: 1 alias.unit = alias.conversionFactor [duplicate.unit] = alias.conversionFactor * factor [master.unit]
+					conversionFactor: alias.conversionFactor * factor,
+				});
+			}
+		}
+	}
+
+	const updatedMaster = await StorageItem.findByIdAndUpdate(
+		masterId,
+		{ $set: { stock: master.stock + addedStock, syncAliases: newAliases } },
+		{ new: true }
+	);
+
+	await StorageItem.findByIdAndDelete(duplicateId);
+
+	return { updatedMaster, duplicateStockTransferred: addedStock, duplicateName: duplicate.name };
+};
+
 export {
 	createStorageItem,
 	getStorageItemById,
@@ -116,4 +181,5 @@ export {
 	updateUnitConversion,
 	getStorageItemIdByName,
 	getStorageItemByIdFromBody,
+	mergeStorageItems,
 };

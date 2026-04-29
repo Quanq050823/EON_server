@@ -5,6 +5,7 @@ import InvoicesInService from "../services/invoicesInService.js";
 import { StatusCodes } from "http-status-codes";
 import SyncHistory from "../models/SyncHistory.js";
 import StockLog from "../models/StockLog.js";
+import StorageItem from "../models/StorageItem.js";
 
 import { getBusinessOwnerByUserId } from "../services/businessOwnerService.js";
 
@@ -282,18 +283,27 @@ const syncStorageItems = async (req, res, next) => {
 						price: item.dgia,
 					};
 					try {
-						const existingItems = await storageItemService.listStorageItems(
-							owner._id,
-							{ name: data.name },
-							{ limit: 1 },
-						);
+						// Tìm theo tên chính hoặc syncAliases (case-insensitive)
+						const namePattern = new RegExp(`^${data.name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
+						const existingItem = await StorageItem.findOne({
+							businessOwnerId: owner._id,
+							$or: [
+								{ name: namePattern },
+								{ "syncAliases.name": namePattern },
+							],
+						});
 
 						let action = "created";
-						if (existingItems.data.length > 0) {
-							const existingItem = existingItems.data[0];
+						if (existingItem) {
+							// Kiểm tra nếu match qua alias → cần quy đổi đơn vị
+							const matchedAlias = existingItem.syncAliases.find(
+								(a) => namePattern.test(a.name)
+							);
+							const factor = matchedAlias ? matchedAlias.conversionFactor : 1;
+							const addedStock = data.stock * factor;
 							await storageItemService.updateStorageItem(
 								existingItem._id,
-								{ stock: existingItem.stock + data.stock },
+								{ stock: existingItem.stock + addedStock },
 								owner._id,
 							);
 							action = "updated";
@@ -614,6 +624,53 @@ const getStockSummary = async (req, res, next) => {
 	}
 };
 
+const mergeItems = async (req, res, next) => {
+	try {
+		const userId = req.user.userId;
+		const owner = await getBusinessOwnerByUserId(userId);
+		if (!owner) {
+			return res
+				.status(StatusCodes.NOT_FOUND)
+				.json({ message: "Business owner profile not found" });
+		}
+
+		const masterId = req.params.id;
+		const { duplicateId, conversionFactor } = req.body;
+
+		if (!duplicateId) {
+			return res
+				.status(StatusCodes.BAD_REQUEST)
+				.json({ message: "duplicateId là bắt buộc" });
+		}
+
+		const factor =
+			typeof conversionFactor === "number" && conversionFactor > 0
+				? conversionFactor
+				: 1;
+
+		const { updatedMaster, duplicateStockTransferred, duplicateName } =
+			await storageItemService.mergeStorageItems(masterId, duplicateId, factor, owner._id);
+
+		// Ghi StockLog cho hành động merge
+		StockLog.create({
+			businessOwnerId: owner._id,
+			storageItemId: updatedMaster._id,
+			itemName: updatedMaster.name,
+			unit: updatedMaster.unit,
+			quantityChanged: duplicateStockTransferred,
+			stockAfter: updatedMaster.stock,
+			pricePerUnit: updatedMaster.price ?? 0,
+			source: "merge",
+			label: `Gộp từ "${duplicateName}"`,
+			triggeredBy: userId,
+		}).catch((e) => console.error("StockLog merge error:", e));
+
+		res.status(StatusCodes.OK).json(updatedMaster);
+	} catch (err) {
+		next(err);
+	}
+};
+
 const getSyncHistory = async (req, res, next) => {
 	try {
 		const userId = req.user.userId;
@@ -665,4 +722,5 @@ export {
 	updateUnitConversion,
 	getIdByName,
 	getByIdFromBody,
+	mergeItems,
 };
