@@ -212,12 +212,22 @@ const createOutputInvoice = async (data, userId) => {
 					});
 
 					if (storageItem) {
-						const quantityToDeduct = parseFloat(item.sluong) || 0;
+						let quantityToDeduct = parseFloat(item.sluong) || 0;
+
+						// Nếu đơn vị trên hoá đơn khác đơn vị gốc trong kho, quy đổi về đơn vị gốc
+						if (item.dvtinh && item.dvtinh !== storageItem.unit) {
+							quantityToDeduct = convertUnit(
+								quantityToDeduct,
+								item.dvtinh,
+								storageItem.unit,
+								storageItem,
+							);
+						}
 
 						if (storageItem.stock < quantityToDeduct) {
 							throw new ApiError(
 								StatusCodes.BAD_REQUEST,
-								`Không đủ số lượng tồn kho cho sản phẩm "${storageItem.name}". Tồn kho: ${storageItem.stock}`,
+								`Không đủ số lượng tồn kho cho sản phẩm "${storageItem.name}". Tồn kho: ${storageItem.stock} ${storageItem.unit}`,
 							);
 						}
 
