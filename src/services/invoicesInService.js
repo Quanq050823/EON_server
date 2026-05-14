@@ -177,26 +177,31 @@ const syncInvoicesFromThirdParty = async (userId, datefrom, dateto) => {
 	return { sync, skip, fail };
 };
 
-const GDT_INVOICE_BASE = "https://hoadondientu.gdt.gov.vn:30000";
+const GDT_INVOICE_BASE = "https://hoadondientu.gdt.gov.vn/api";
 const GDT_PAGE_SIZE = 40;
 
-const fetchInvoicesFromGDT = async (gdtToken, dateFrom, dateTo) => {
-	const formatGDTDate = (dateStr, endOfDay = false) => {
-		const [year, month, day] = dateStr.split("-");
-		const time = endOfDay ? "T23:59:59" : "T00:00:00";
-		return `${day}/${month}/${year}${time}`;
-	};
+const formatGDTDate = (dateStr, endOfDay = false) => {
+	const [year, month, day] = dateStr.split("-");
+	const time = endOfDay ? "T23:59:59" : "T00:00:00";
+	return `${day}/${month}/${year}${time}`;
+};
 
+const fetchInvoicesFromGDTByStatus = async (gdtToken, dateFrom, dateTo, ttxly) => {
 	const startStr = formatGDTDate(dateFrom);
 	const endStr = formatGDTDate(dateTo, true);
-	const search = `tdlap=ge=${startStr};tdlap=le=${endStr};ttxly==5`;
-     
+	const search = `tdlap=ge=${startStr};tdlap=le=${endStr};ttxly==${ttxly}`;
+
+	const endpoint =
+		ttxly === 8
+			? `${GDT_INVOICE_BASE}/sco-query/invoices/purchase`
+			: `${GDT_INVOICE_BASE}/query/invoices/purchase`;
+
 	let page = 0;
 	const allInvoices = [];
 
 	while (true) {
 		const response = await axios.get(
-			`${GDT_INVOICE_BASE}/query/invoices/purchase`,
+			endpoint,
 			{
 				headers: {
 					Authorization: `Bearer ${gdtToken}`,
@@ -223,9 +228,21 @@ const fetchInvoicesFromGDT = async (gdtToken, dateFrom, dateTo) => {
 	return allInvoices;
 };
 
-const fetchInvoiceDetailFromGDT = async (gdtToken, nbmst, khhdon, shdon, khmshdon) => {
+const fetchInvoicesFromGDT = async (gdtToken, dateFrom, dateTo) => {
+	const [invoicesStatus5, invoicesStatus8] = await Promise.all([
+		fetchInvoicesFromGDTByStatus(gdtToken, dateFrom, dateTo, 5),
+		fetchInvoicesFromGDTByStatus(gdtToken, dateFrom, dateTo, 8),
+	]);
+	return [...invoicesStatus5, ...invoicesStatus8];
+};
+
+const fetchInvoiceDetailFromGDT = async (gdtToken, nbmst, khhdon, shdon, khmshdon, ttxly) => {
+	const detailEndpoint =
+		ttxly === 8
+			? `${GDT_INVOICE_BASE}/sco-query/invoices/detail`
+			: `${GDT_INVOICE_BASE}/query/invoices/detail`;
 	const response = await axios.get(
-		`${GDT_INVOICE_BASE}/query/invoices/detail`,
+		detailEndpoint,
 		{
 			headers: {
 				Authorization: `Bearer ${gdtToken}`,
@@ -305,7 +322,7 @@ const syncListInvoicesDetailsFromThirdParty = async (userId, gdtToken) => {
 				chunkFail = 0;
 
 			for (const [idx, invoice] of invoices.entries()) {
-				const invoiceLabel = `[${chunk.from}~${chunk.to}] Invoice[${idx}] nbmst=${invoice.nbmst} khhdon=${invoice.khhdon} shdon=${invoice.shdon}`;
+				const invoiceLabel = `[${chunk.from}~${chunk.to}] [ttxly=${invoice.ttxly ?? "?"}] Invoice[${idx}] nbmst=${invoice.nbmst} khhdon=${invoice.khhdon} shdon=${invoice.shdon}`;
 				try {
 					const data = { ...invoice, ownerId: owner._id };
 					const saved = await createInvoice(data);
@@ -319,6 +336,7 @@ const syncListInvoicesDetailsFromThirdParty = async (userId, gdtToken) => {
 							invoice.khhdon,
 							invoice.shdon,
 							invoice.khmshdon,
+							invoice.ttxly,
 						);
 						if (Array.isArray(detail?.hdhhdvu) && detail.hdhhdvu.length > 0) {
 							await InvoicesIn.findByIdAndUpdate(saved._id, { hdhhdvu: detail.hdhhdvu });
@@ -346,6 +364,12 @@ const syncListInvoicesDetailsFromThirdParty = async (userId, gdtToken) => {
 			totalSkip += chunkSkip;
 			totalFail += chunkFail;
 
+			const byStatus = {};
+			for (const invoice of invoices) {
+				const key = invoice.ttxly ?? "unknown";
+				byStatus[key] = (byStatus[key] ?? 0) + 1;
+			}
+
 			processedChunks.push({
 				dateFrom: chunk.from,
 				dateTo: chunk.to,
@@ -353,6 +377,7 @@ const syncListInvoicesDetailsFromThirdParty = async (userId, gdtToken) => {
 				skip: chunkSkip,
 				fail: chunkFail,
 				total: invoices.length,
+				byStatus,
 			});
 
 			console.log(

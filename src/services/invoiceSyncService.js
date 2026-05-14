@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const GDT_BASE = "https://hoadondientu.gdt.gov.vn:30000";
+const GDT_BASE = "https://hoadondientu.gdt.gov.vn/api";
 
 async function getCaptchaFromGDT() {
 	try {
