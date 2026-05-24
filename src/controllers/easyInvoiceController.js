@@ -61,6 +61,15 @@ const saveOutputInvoiceFromEasyInvoice = async (invoiceData, userId) => {
 
 const isEasyInvoiceSuccess = (result) => Number(result?.Status) === 1;
 
+const nextEasyInvoiceError = (next, error) => {
+	next(
+		new ApiError(
+			error.statusCode || StatusCodes.INTERNAL_SERVER_ERROR,
+			error.message,
+		),
+	);
+};
+
 export const getInvoiceByArisingDateRange = async (req, res, next) => {
 	try {
 		const { FromDate, ToDate, Page, PageSize } = req.body;
@@ -110,7 +119,7 @@ export const getInvoiceByArisingDateRange = async (req, res, next) => {
 		);
 		res.status(StatusCodes.OK).json({ success: true, data: result });
 	} catch (error) {
-		next(new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, error.message));
+		nextEasyInvoiceError(next, error);
 	}
 };
 
@@ -204,7 +213,7 @@ export const importInvoice = async (req, res, next) => {
 			savedInvoice,
 		});
 	} catch (error) {
-		next(new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, error.message));
+		nextEasyInvoiceError(next, error);
 	}
 };
 
@@ -291,7 +300,7 @@ export const importAndIssueInvoice = async (req, res, next) => {
 		});
 	} catch (error) {
 		console.log("🚀 ~ importAndIssueInvoice ~ error:", error);
-		next(new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, error.message));
+		nextEasyInvoiceError(next, error);
 	}
 };
 
@@ -341,7 +350,7 @@ export const cancelInvoice = async (req, res, next) => {
 		);
 		res.status(StatusCodes.OK).json({ success: true, data: result });
 	} catch (error) {
-		next(new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, error.message));
+		nextEasyInvoiceError(next, error);
 	}
 };
 
@@ -401,7 +410,7 @@ export const removeUnsignedInvoice = async (req, res, next) => {
 
 		res.status(StatusCodes.OK).json({ success: true, data: result });
 	} catch (error) {
-		next(new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, error.message));
+		nextEasyInvoiceError(next, error);
 	}
 };
 
@@ -479,7 +488,7 @@ export const adjustInvoice = async (req, res, next) => {
 			invoiceData: normalizedInvoiceData,
 		});
 	} catch (error) {
-		next(new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, error.message));
+		nextEasyInvoiceError(next, error);
 	}
 };
 
@@ -565,7 +574,7 @@ export const getInvoiceAuto = async (req, res, next) => {
 			dateRange: { FromDate, ToDate },
 		});
 	} catch (error) {
-		next(new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, error.message));
+		nextEasyInvoiceError(next, error);
 	}
 };
 
@@ -618,6 +627,6 @@ export const viewInvoice = async (req, res, next) => {
 		);
 		res.status(StatusCodes.OK).json({ success: true, data: result });
 	} catch (error) {
-		next(new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, error.message));
+		nextEasyInvoiceError(next, error);
 	}
 };
