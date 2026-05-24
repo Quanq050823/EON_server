@@ -3,6 +3,7 @@ import InvoicesIn from "../models/InvoicesIn.js";
 import BusinessOwner from "../models/BusinessOwner.js";
 import ApiError from "../utils/ApiError.js";
 import { StatusCodes } from "http-status-codes";
+import { requestGDTWithRetry } from "./gdtHttpClient.js";
 
 const THIRD_PARTY_TOKEN = "3J/EhtxvsAO74hsLC6PtTdSKM0VleDskquWltIl8SlM=";
 const API_BASE_URL = "https://vuat-api.vitax.one/api/partner/Invoices";
@@ -79,8 +80,8 @@ const splitDateRangeIntoChunks = (startDate, endDate) => {
 };
 const fetchInvoicesFromThirdParty = async (datefrom, dateto, taxCode) => {
 	// Force datefrom and dateto to fixed values
-	datefrom = "2026-01-01";
-	dateto = "2026-01-31";
+	// datefrom = "2026-01-01";
+	// dateto = "2026-01-31";
 
 	console.log("🚀 ~ fetchInvoicesFromThirdParty ~ params.datefrom:", datefrom);
 	console.log("🚀 ~ fetchInvoicesFromThirdParty ~ params.dateto:", dateto);
@@ -177,7 +178,6 @@ const syncInvoicesFromThirdParty = async (userId, datefrom, dateto) => {
 	return { sync, skip, fail };
 };
 
-const GDT_INVOICE_BASE = "https://hoadondientu.gdt.gov.vn/api";
 const GDT_PAGE_SIZE = 40;
 
 const formatGDTDate = (dateStr, endOfDay = false) => {
@@ -193,24 +193,23 @@ const fetchInvoicesFromGDTByStatus = async (gdtToken, dateFrom, dateTo, ttxly) =
 
 	const endpoint =
 		ttxly === 8
-			? `${GDT_INVOICE_BASE}/sco-query/invoices/purchase`
-			: `${GDT_INVOICE_BASE}/query/invoices/purchase`;
+			? "/sco-query/invoices/purchase"
+			: "/query/invoices/purchase";
 
 	let page = 0;
 	const allInvoices = [];
 
 	while (true) {
-		const response = await axios.get(
-			endpoint,
-			{
-				headers: {
-					Authorization: `Bearer ${gdtToken}`,
-					"Content-Type": "application/json",
-				},
-				params: { sort: "tdlap:desc", size: GDT_PAGE_SIZE, page, search },
-				timeout: 30000,
+		const response = await requestGDTWithRetry({
+			method: "get",
+			url: endpoint,
+			headers: {
+				Authorization: `Bearer ${gdtToken}`,
+				"Content-Type": "application/json",
 			},
-		);
+			params: { sort: "tdlap:desc", size: GDT_PAGE_SIZE, page, search },
+			timeout: 30000,
+		});
 
 		const data = response.data;
 		const items = Array.isArray(data?.datas)
@@ -229,6 +228,9 @@ const fetchInvoicesFromGDTByStatus = async (gdtToken, dateFrom, dateTo, ttxly) =
 };
 
 const fetchInvoicesFromGDT = async (gdtToken, dateFrom, dateTo) => {
+	console.log("🚀 ~ fetchInvoicesFromGDT ~ dateTo:", dateTo)
+	console.log("🚀 ~ fetchInvoicesFromGDT ~ dateFrom:", dateFrom)
+	console.log("🚀 ~ fetchInvoicesFromGDT ~ gdtToken:", gdtToken)
 	const [invoicesStatus5, invoicesStatus8] = await Promise.all([
 		fetchInvoicesFromGDTByStatus(gdtToken, dateFrom, dateTo, 5),
 		fetchInvoicesFromGDTByStatus(gdtToken, dateFrom, dateTo, 8),
@@ -239,19 +241,18 @@ const fetchInvoicesFromGDT = async (gdtToken, dateFrom, dateTo) => {
 const fetchInvoiceDetailFromGDT = async (gdtToken, nbmst, khhdon, shdon, khmshdon, ttxly) => {
 	const detailEndpoint =
 		ttxly === 8
-			? `${GDT_INVOICE_BASE}/sco-query/invoices/detail`
-			: `${GDT_INVOICE_BASE}/query/invoices/detail`;
-	const response = await axios.get(
-		detailEndpoint,
-		{
-			headers: {
-				Authorization: `Bearer ${gdtToken}`,
-				"Content-Type": "application/json",
-			},
-			params: { nbmst, khhdon, shdon, khmshdon },
-			timeout: 30000,
+			? "/sco-query/invoices/detail"
+			: "/query/invoices/detail";
+	const response = await requestGDTWithRetry({
+		method: "get",
+		url: detailEndpoint,
+		headers: {
+			Authorization: `Bearer ${gdtToken}`,
+			"Content-Type": "application/json",
 		},
-	);
+		params: { nbmst, khhdon, shdon, khmshdon },
+		timeout: 30000,
+	});
 	return response.data;
 };
 
