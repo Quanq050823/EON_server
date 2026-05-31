@@ -74,10 +74,23 @@ const isLogBetween = (log, startDate, endDate) => {
 	return logDate >= startDate && logDate <= endDate;
 };
 
-const getOpeningQuantityForPeriod = (itemLogs, startDate) => {
+const getOpeningQuantityForPeriod = (itemLogs, startDate, endDate) => {
 	const openingBalanceLogs = itemLogs
 		.filter((log) => log.source === "opening_balance" && getLogDate(log) <= startDate)
 		.sort(compareLogDateAsc);
+
+	const openingBalanceInPeriod = endDate
+		? itemLogs
+			.filter((log) => {
+				const logDate = getLogDate(log);
+				return (
+					log.source === "opening_balance" &&
+					logDate > startDate &&
+					logDate <= endDate
+				);
+			})
+			.reduce((sum, log) => sum + getSignedQuantityFromLog(log), 0)
+		: 0;
 
 	if (openingBalanceLogs.length > 0) {
 		let openingQuantity = 0;
@@ -101,14 +114,14 @@ const getOpeningQuantityForPeriod = (itemLogs, startDate) => {
 			})
 			.reduce((sum, log) => sum + getSignedQuantityFromLog(log), 0);
 
-		return openingQuantity + movementAfterOpeningBeforePeriod;
+		return openingQuantity + movementAfterOpeningBeforePeriod + openingBalanceInPeriod;
 	}
 
 	const openingLog = itemLogs
 		.filter((log) => isLogBefore(log, startDate))
 		.sort(compareLogDateDesc)[0];
 
-	return toNumber(openingLog?.stockAfter);
+	return toNumber(openingLog?.stockAfter) + openingBalanceInPeriod;
 };
 
 const getLatestUnitPrice = (item, itemLogs, endDate) => {
@@ -167,6 +180,73 @@ const buildStockLogPayload = ({
 
 const createStockLog = (payload) =>
 	StockLog.create(payload).catch((e) => console.error("StockLog create error:", e));
+
+const OPENING_BALANCE_LOG_TYPES = new Set([
+	"opening_balance",
+	"opening-balance",
+	"opening",
+	"ton_dau_ki",
+	"ton_dau_ky",
+	"ton dau ki",
+	"ton dau ky",
+	"tồn đầu kì",
+	"tồn đầu kỳ",
+]);
+
+const IN_PERIOD_LOG_TYPES = new Set([
+	"manual_add",
+	"manual-add",
+	"in_period",
+	"in-period",
+	"period_import",
+	"period-import",
+	"nhap_trong_ki",
+	"nhap_trong_ky",
+	"nhap trong ki",
+	"nhap trong ky",
+	"nhập trong kì",
+	"nhập trong kỳ",
+]);
+
+const normalizeCreateLogType = (value) => {
+	if (!value) return "manual_add";
+	const normalizedValue = String(value).trim().toLowerCase();
+	if (OPENING_BALANCE_LOG_TYPES.has(normalizedValue)) return "opening_balance";
+	if (IN_PERIOD_LOG_TYPES.has(normalizedValue)) return "manual_add";
+	throw new ApiError(
+		StatusCodes.BAD_REQUEST,
+		"stockLogType must be opening_balance or manual_add",
+	);
+};
+
+const normalizeOptionalLogDate = (value) => {
+	if (!value) return undefined;
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) {
+		throw new ApiError(StatusCodes.BAD_REQUEST, "documentDate is invalid");
+	}
+	return date;
+};
+
+const splitStorageItemCreatePayload = (body) => {
+	const {
+		stockLogType,
+		logType,
+		logSource,
+		stockLogSource,
+		documentDate,
+		stockLogDate,
+		...storageItemData
+	} = body;
+
+	return {
+		storageItemData,
+		logType: normalizeCreateLogType(
+			stockLogType ?? logType ?? logSource ?? stockLogSource,
+		),
+		documentDate: normalizeOptionalLogDate(documentDate ?? stockLogDate),
+	};
+};
 
 const upsertOpeningBalance = async (req, res, next) => {
 	try {
@@ -333,7 +413,11 @@ const getInventoryReport = async (req, res, next) => {
 					return isReportable && isLogBetween(log, bounds.start, bounds.end);
 				});
 
-				const openingQuantity = getOpeningQuantityForPeriod(itemLogs, bounds.start);
+				const openingQuantity = getOpeningQuantityForPeriod(
+					itemLogs,
+					bounds.start,
+					bounds.end,
+				);
 				const inQuantity = movements.reduce(
 					(sum, log) => sum + Math.max(getSignedQuantityFromLog(log), 0),
 					0,
@@ -416,11 +500,14 @@ const create = async (req, res, next) => {
 				.status(StatusCodes.NOT_FOUND)
 				.json({ message: "Business owner profile not found" });
 		}
+		const { storageItemData, logType, documentDate } =
+			splitStorageItemCreatePayload(req.body);
 		const result = await storageItemService.createStorageItem(
-			req.body,
+			storageItemData,
 			owner._id,
 		);
-		// Lưu log tồn kho thủ công
+		const isOpeningBalance = logType === "opening_balance";
+		// Lưu log tồn kho thủ công theo lựa chọn phục vụ báo cáo tồn kho.
 		StockLog.create({
 			...buildStockLogPayload({
 				ownerId: owner._id,
@@ -428,8 +515,11 @@ const create = async (req, res, next) => {
 				item: result,
 				stockBefore: 0,
 				stockAfter: result.stock ?? 0,
-				source: "manual_add",
-				label: "Thêm tồn kho",
+				source: logType,
+				label: isOpeningBalance ? "Số dư đầu kỳ" : "Thêm tồn kho",
+				documentType: isOpeningBalance ? "opening_balance" : "manual_add",
+				documentDate,
+				reportable: !isOpeningBalance && (result.stock ?? 0) !== 0,
 			}),
 		}).catch((e) => console.error("StockLog create error:", e));
 		res.status(StatusCodes.CREATED).json(result);
