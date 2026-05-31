@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 
 const StorageItemSchema = new mongoose.Schema(
 	{
+		code: { type: String },
 		name: { type: String, required: true },
 		unit: { type: String, required: true },
 		stock: { type: Number, required: true, default: 0 },

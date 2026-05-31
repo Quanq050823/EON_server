@@ -4,6 +4,7 @@ import { StatusCodes } from "http-status-codes";
 import BusinessOwner from "../models/BusinessOwner.js";
 import OutputInvoice from "../models/OutputInvoice.js";
 import Product from "../models/Product.js";
+import StockLog from "../models/StockLog.js";
 import StorageItem from "../models/StorageItem.js";
 import ApiError from "../utils/ApiError.js";
 
@@ -99,7 +100,45 @@ const convertUnit = (quantity, fromUnit, toUnit, storageItem) => {
 	);
 };
 
-const deductMaterialsFromStorage = async (materials, ownerId) => {
+const toNumber = (value, fallback = 0) => {
+	const num = Number(value);
+	return Number.isFinite(num) ? num : fallback;
+};
+
+const createInvoiceOutLog = async ({
+	ownerId,
+	storageItem,
+	stockBefore,
+	stockAfter,
+	quantityChanged,
+	invoiceCodes,
+	documentDate,
+	counterpartyName,
+}) => {
+	const unitPrice = toNumber(storageItem.price);
+	await StockLog.create({
+		businessOwnerId: ownerId,
+		storageItemId: storageItem._id,
+		itemName: storageItem.name,
+		unit: storageItem.unit,
+		quantityChanged: Math.abs(quantityChanged),
+		stockBefore,
+		stockAfter,
+		signedQuantity: -Math.abs(quantityChanged),
+		direction: "out",
+		amount: Math.abs(quantityChanged) * unitPrice,
+		pricePerUnit: unitPrice,
+		source: "invoice_out",
+		label: "Xuất từ hóa đơn bán ra",
+		documentType: "invoice_out",
+		documentNumber: invoiceCodes?.shdon || invoiceCodes?.mhdon,
+		documentDate,
+		counterpartyName,
+		reportable: true,
+	}).catch((e) => console.error("StockLog invoice_out error:", e));
+};
+
+const deductMaterialsFromStorage = async (materials, ownerId, context = {}) => {
 	for (const material of materials) {
 		let storageItem;
 
@@ -142,8 +181,19 @@ const deductMaterialsFromStorage = async (materials, ownerId) => {
 			);
 		}
 
+		const stockBefore = storageItem.stock;
 		storageItem.stock -= quantityToDeduct;
 		await storageItem.save();
+		await createInvoiceOutLog({
+			ownerId,
+			storageItem,
+			stockBefore,
+			stockAfter: storageItem.stock,
+			quantityChanged: quantityToDeduct,
+			invoiceCodes: context.invoiceCodes,
+			documentDate: context.documentDate,
+			counterpartyName: context.counterpartyName,
+		});
 	}
 };
 
@@ -154,6 +204,7 @@ const createOutputInvoice = async (data, userId) => {
 	}
 
 	const invoiceCodes = await generateInvoiceNumber(owner._id);
+	const documentDate = new Date();
 
 	const fullAddress = `${owner.address.street}, ${owner.address.ward}, ${owner.address.district}, ${owner.address.city}`;
 
@@ -204,7 +255,11 @@ const createOutputInvoice = async (data, userId) => {
 						unit: m.unit,
 					}));
 
-					await deductMaterialsFromStorage(materialsNeeded, owner._id);
+					await deductMaterialsFromStorage(materialsNeeded, owner._id, {
+						invoiceCodes,
+						documentDate,
+						counterpartyName: data.nmten || data.customerName || "",
+					});
 				} else {
 					const storageItem = await StorageItem.findOne({
 						name: item.ten,
@@ -231,8 +286,19 @@ const createOutputInvoice = async (data, userId) => {
 							);
 						}
 
+						const stockBefore = storageItem.stock;
 						storageItem.stock -= quantityToDeduct;
 						await storageItem.save();
+						await createInvoiceOutLog({
+							ownerId: owner._id,
+							storageItem,
+							stockBefore,
+							stockAfter: storageItem.stock,
+							quantityChanged: quantityToDeduct,
+							invoiceCodes,
+							documentDate,
+							counterpartyName: data.nmten || data.customerName || "",
+						});
 
 						console.log(
 							`Đã khấu trừ ${quantityToDeduct} ${storageItem.unit} từ kho cho sản phẩm "${storageItem.name}". Tồn kho còn: ${storageItem.stock}`,
@@ -254,7 +320,7 @@ const createOutputInvoice = async (data, userId) => {
 		nbten: owner.businessName,
 		nbdchi: fullAddress,
 		...invoiceCodes,
-		ncnhat: new Date(),
+		ncnhat: documentDate,
 		totalGTGT,
 		totalTNCN,
 	};

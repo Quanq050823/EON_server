@@ -16,13 +16,34 @@ const StockLogSchema = new mongoose.Schema(
 		itemName: { type: String, required: true },
 		unit: { type: String },
 		quantityChanged: { type: Number }, // số lượng thêm hoặc thay đổi
+		stockBefore: { type: Number, default: 0 },
 		stockAfter: { type: Number },       // tồn kho sau khi thay đổi
+		signedQuantity: { type: Number, default: 0 },
+		direction: {
+			type: String,
+			enum: ["in", "out", "neutral"],
+			default: "neutral",
+		},
+		amount: { type: Number, default: 0 },
 		pricePerUnit: { type: Number },
 		source: {
 			type: String,
-			enum: ["manual_add", "manual_update", "manual_delete"],
+			enum: [
+				"opening_balance",
+				"manual_add",
+				"manual_update",
+				"manual_delete",
+				"invoice_in",
+				"invoice_out",
+				"merge",
+			],
 			default: "manual_add",
 		},
+		documentType: { type: String },
+		documentNumber: { type: String },
+		documentDate: { type: Date },
+		counterpartyName: { type: String },
+		reportable: { type: Boolean, default: true },
 		// label hiển thị cho UI
 		label: {
 			type: String,
@@ -44,6 +65,9 @@ const StockLogSchema = new mongoose.Schema(
 	},
 	{ timestamps: true }
 );
+
+StockLogSchema.index({ businessOwnerId: 1, storageItemId: 1, createdAt: 1 });
+StockLogSchema.index({ businessOwnerId: 1, source: 1, storageItemId: 1 });
 
 const StockLog = mongoose.model("StockLog", StockLogSchema);
 export default StockLog;

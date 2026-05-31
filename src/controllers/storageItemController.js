@@ -9,6 +9,404 @@ import StorageItem from "../models/StorageItem.js";
 
 import { getBusinessOwnerByUserId } from "../services/businessOwnerService.js";
 
+const ACCOUNT_CODES = "1521,156,1561,155,002,152";
+
+const toNumber = (value, fallback = 0) => {
+	const num = Number(value);
+	return Number.isFinite(num) ? num : fallback;
+};
+
+const getDayBounds = (startDate, endDate) => {
+	if (!startDate || !endDate) {
+		return null;
+	}
+	const start = new Date(startDate);
+	const end = new Date(endDate);
+	if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+		return null;
+	}
+	start.setHours(0, 0, 0, 0);
+	end.setHours(23, 59, 59, 999);
+	return { start, end };
+};
+
+const getFullAddress = (owner) =>
+	[
+		owner?.address?.street,
+		owner?.address?.ward,
+		owner?.address?.district,
+		owner?.address?.city,
+	].filter(Boolean).join(", ");
+
+const getDirection = (signedQuantity) => {
+	if (signedQuantity > 0) return "in";
+	if (signedQuantity < 0) return "out";
+	return "neutral";
+};
+
+const getSignedQuantityFromLog = (log) => {
+	if (log.signedQuantity !== undefined && log.signedQuantity !== null) {
+		return toNumber(log.signedQuantity);
+	}
+	if (log.source === "manual_add" || log.source === "invoice_in") {
+		return toNumber(log.quantityChanged);
+	}
+	if (log.source === "manual_delete" || log.source === "invoice_out") {
+		return -toNumber(log.quantityChanged);
+	}
+	return 0;
+};
+
+const getLogDate = (log) => new Date(log.documentDate || log.createdAt);
+
+const compareLogDateDesc = (a, b) => {
+	const dateDiff = getLogDate(b) - getLogDate(a);
+	if (dateDiff !== 0) return dateDiff;
+	return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+};
+
+const compareLogDateAsc = (a, b) => -compareLogDateDesc(a, b);
+
+const isLogBefore = (log, date) => getLogDate(log) < date;
+
+const isLogBetween = (log, startDate, endDate) => {
+	const logDate = getLogDate(log);
+	return logDate >= startDate && logDate <= endDate;
+};
+
+const getOpeningQuantityForPeriod = (itemLogs, startDate) => {
+	const openingBalanceLogs = itemLogs
+		.filter((log) => log.source === "opening_balance" && getLogDate(log) <= startDate)
+		.sort(compareLogDateAsc);
+
+	if (openingBalanceLogs.length > 0) {
+		let openingQuantity = 0;
+		let movementStartDate = getLogDate(openingBalanceLogs[0]);
+
+		for (const log of openingBalanceLogs) {
+			const signedQuantity = getSignedQuantityFromLog(log);
+			if (signedQuantity === 0) {
+				openingQuantity = toNumber(log.stockAfter);
+				movementStartDate = getLogDate(log);
+			} else {
+				openingQuantity += signedQuantity;
+			}
+		}
+
+		const movementAfterOpeningBeforePeriod = itemLogs
+			.filter((log) => {
+				const logDate = getLogDate(log);
+				const isReportable = log.reportable === true || log.reportable === undefined;
+				return isReportable && logDate > movementStartDate && logDate < startDate;
+			})
+			.reduce((sum, log) => sum + getSignedQuantityFromLog(log), 0);
+
+		return openingQuantity + movementAfterOpeningBeforePeriod;
+	}
+
+	const openingLog = itemLogs
+		.filter((log) => isLogBefore(log, startDate))
+		.sort(compareLogDateDesc)[0];
+
+	return toNumber(openingLog?.stockAfter);
+};
+
+const getLatestUnitPrice = (item, itemLogs, endDate) => {
+	const latestPriceLog = itemLogs
+		.filter((log) => log.pricePerUnit !== undefined && log.pricePerUnit !== null && getLogDate(log) <= endDate)
+		.sort(compareLogDateDesc)[0];
+
+	return toNumber(latestPriceLog?.pricePerUnit ?? item.price);
+};
+
+const buildStockLogPayload = ({
+	ownerId,
+	userId,
+	item,
+	stockBefore,
+	stockAfter,
+	source,
+	label,
+	quantityChanged,
+	pricePerUnit,
+	changes,
+	documentType,
+	documentNumber,
+	documentDate,
+	counterpartyName,
+	reportable,
+}) => {
+	const signedQuantity = toNumber(stockAfter) - toNumber(stockBefore);
+	const absoluteQuantity =
+		quantityChanged !== undefined ? Math.abs(toNumber(quantityChanged)) : Math.abs(signedQuantity);
+	const unitPrice = toNumber(pricePerUnit ?? item?.price);
+
+	return {
+		businessOwnerId: ownerId,
+		storageItemId: item?._id,
+		itemName: item?.name,
+		unit: item?.unit,
+		quantityChanged: absoluteQuantity,
+		stockBefore: toNumber(stockBefore),
+		stockAfter: toNumber(stockAfter),
+		signedQuantity,
+		direction: getDirection(signedQuantity),
+		amount: Math.abs(signedQuantity) * unitPrice,
+		pricePerUnit: unitPrice,
+		source,
+		label,
+		changes,
+		documentType,
+		documentNumber: documentNumber ? String(documentNumber) : undefined,
+		documentDate: documentDate ? new Date(documentDate) : undefined,
+		counterpartyName,
+		reportable: reportable ?? signedQuantity !== 0,
+		triggeredBy: userId,
+	};
+};
+
+const createStockLog = (payload) =>
+	StockLog.create(payload).catch((e) => console.error("StockLog create error:", e));
+
+const upsertOpeningBalance = async (req, res, next) => {
+	try {
+		const userId = req.user.userId;
+		const owner = await getBusinessOwnerByUserId(userId);
+		if (!owner) {
+			return res
+				.status(StatusCodes.NOT_FOUND)
+				.json({ message: "Business owner profile not found" });
+		}
+
+		const documentDate = new Date(req.body.documentDate);
+		if (Number.isNaN(documentDate.getTime())) {
+			return res
+				.status(StatusCodes.BAD_REQUEST)
+				.json({ message: "documentDate is required" });
+		}
+
+		const items = Array.isArray(req.body.items) ? req.body.items : [];
+		if (items.length === 0) {
+			return res
+				.status(StatusCodes.BAD_REQUEST)
+				.json({ message: "items must be a non-empty array" });
+		}
+
+		const results = [];
+		for (const row of items) {
+			const name = String(row.name ?? "").trim();
+			const unit = String(row.unit ?? "").trim();
+			const openingQuantity = toNumber(row.openingQuantity, NaN);
+			const unitPrice = toNumber(row.unitPrice, 0);
+			if (!name || !unit || !Number.isFinite(openingQuantity) || openingQuantity < 0) {
+				return res.status(StatusCodes.BAD_REQUEST).json({
+					message: "Each item requires name, unit, and openingQuantity >= 0",
+				});
+			}
+
+			const query = row.storageItemId
+				? { _id: row.storageItemId, businessOwnerId: owner._id }
+				: {
+					businessOwnerId: owner._id,
+					name: { $regex: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") },
+				};
+
+			let item = await StorageItem.findOne(query);
+			const existingItem = Boolean(item);
+			const stockBefore = existingItem ? toNumber(item.stock) : 0;
+			const stockAfter = stockBefore + openingQuantity;
+			if (!item) {
+				item = new StorageItem({
+					code: row.code,
+					name,
+					unit,
+					stock: stockAfter,
+					price: unitPrice,
+					category: row.category ? Number(row.category) : 1,
+					syncStatus: true,
+					businessOwnerId: owner._id,
+				});
+				await item.save();
+			} else {
+				item.code = row.code ?? item.code;
+				item.name = name;
+				item.unit = unit;
+				item.price = unitPrice;
+				item.category = row.category ? Number(row.category) : item.category || 1;
+				item.syncStatus = true;
+				item.stock = stockAfter;
+				await item.save();
+			}
+
+			if (existingItem) {
+				await StockLog.updateMany(
+					{
+						businessOwnerId: owner._id,
+						storageItemId: item._id,
+						source: "manual_add",
+						stockBefore: 0,
+						$or: [{ reportable: true }, { reportable: { $exists: false } }],
+					},
+					{ $set: { reportable: false } },
+				);
+			}
+
+			const openingPayload = {
+				businessOwnerId: owner._id,
+				storageItemId: item._id,
+				itemName: item.name,
+				unit: item.unit,
+				quantityChanged: openingQuantity,
+				stockBefore,
+				stockAfter,
+				signedQuantity: openingQuantity,
+				direction: openingQuantity > 0 ? "in" : "neutral",
+				amount: openingQuantity * unitPrice,
+				pricePerUnit: unitPrice,
+				source: "opening_balance",
+				label: "Số dư đầu kỳ",
+				documentType: "opening_balance",
+				documentDate,
+				reportable: false,
+				triggeredBy: userId,
+			};
+
+			await StockLog.create(openingPayload);
+
+			results.push({
+				storageItemId: item._id,
+				name: item.name,
+				unit: item.unit,
+				openingQuantity,
+				currentStock: stockAfter,
+			});
+		}
+
+		res.status(StatusCodes.OK).json({
+			message: "Opening balance saved successfully",
+			documentDate: documentDate.toISOString(),
+			data: results,
+		});
+	} catch (error) {
+		next(error);
+	}
+};
+
+const getInventoryReport = async (req, res, next) => {
+	try {
+		const userId = req.user.userId;
+		const owner = await getBusinessOwnerByUserId(userId);
+		if (!owner) {
+			return res
+				.status(StatusCodes.NOT_FOUND)
+				.json({ message: "Business owner profile not found" });
+		}
+
+		const bounds = getDayBounds(req.query.startDate, req.query.endDate);
+		if (!bounds) {
+			return res
+				.status(StatusCodes.BAD_REQUEST)
+				.json({ message: "startDate and endDate are required" });
+		}
+
+		const category = req.query.category ?? "all";
+		const itemFilter = { businessOwnerId: owner._id, syncStatus: true };
+		if (category !== "all") {
+			const categoryNumber = Number(category);
+			if (![1, 2].includes(categoryNumber)) {
+				return res
+					.status(StatusCodes.BAD_REQUEST)
+					.json({ message: "category must be all, 1, or 2" });
+			}
+			itemFilter.category = categoryNumber;
+		}
+
+		const items = await StorageItem.find(itemFilter).sort({ name: 1 }).lean();
+		const rows = await Promise.all(
+			items.map(async (item) => {
+				const itemLogs = await StockLog.find({
+					businessOwnerId: owner._id,
+					storageItemId: item._id,
+				}).lean();
+				const movements = itemLogs.filter((log) => {
+					const isReportable = log.reportable === true || log.reportable === undefined;
+					return isReportable && isLogBetween(log, bounds.start, bounds.end);
+				});
+
+				const openingQuantity = getOpeningQuantityForPeriod(itemLogs, bounds.start);
+				const inQuantity = movements.reduce(
+					(sum, log) => sum + Math.max(getSignedQuantityFromLog(log), 0),
+					0,
+				);
+				const outQuantity = movements.reduce(
+					(sum, log) => sum + Math.abs(Math.min(getSignedQuantityFromLog(log), 0)),
+					0,
+				);
+				const closingQuantity = openingQuantity + inQuantity - outQuantity;
+				const unitPrice = getLatestUnitPrice(item, itemLogs, bounds.end);
+
+				return {
+					itemId: item._id.toString(),
+					itemCode: item.code ?? "",
+					itemName: item.name,
+					unit: item.unit,
+					unitPrice,
+					openingQuantity,
+					openingValue: openingQuantity * unitPrice,
+					inQuantity,
+					inValue: inQuantity * unitPrice,
+					outQuantity,
+					outValue: outQuantity * unitPrice,
+					closingQuantity,
+					closingValue: closingQuantity * unitPrice,
+				};
+			}),
+		);
+
+		const totals = rows.reduce(
+			(acc, row) => ({
+				openingQuantity: acc.openingQuantity + row.openingQuantity,
+				openingValue: acc.openingValue + row.openingValue,
+				inQuantity: acc.inQuantity + row.inQuantity,
+				inValue: acc.inValue + row.inValue,
+				outQuantity: acc.outQuantity + row.outQuantity,
+				outValue: acc.outValue + row.outValue,
+				closingQuantity: acc.closingQuantity + row.closingQuantity,
+				closingValue: acc.closingValue + row.closingValue,
+			}),
+			{
+				openingQuantity: 0,
+				openingValue: 0,
+				inQuantity: 0,
+				inValue: 0,
+				outQuantity: 0,
+				outValue: 0,
+				closingQuantity: 0,
+				closingValue: 0,
+			},
+		);
+
+		res.status(StatusCodes.OK).json({
+			profile: {
+				businessName: owner.businessName,
+				taxCode: owner.taxCode,
+				address: owner.address,
+				addressText: getFullAddress(owner),
+			},
+			period: {
+				startDate: bounds.start.toISOString(),
+				endDate: bounds.end.toISOString(),
+			},
+			accountCodes: ACCOUNT_CODES,
+			rows,
+			totals,
+			generatedAt: new Date().toISOString(),
+		});
+	} catch (error) {
+		next(error);
+	}
+};
+
 const create = async (req, res, next) => {
 	try {
 		const userId = req.user.userId;
@@ -24,16 +422,15 @@ const create = async (req, res, next) => {
 		);
 		// Lưu log tồn kho thủ công
 		StockLog.create({
-			businessOwnerId: owner._id,
-			storageItemId: result._id,
-			itemName: result.name,
-			unit: result.unit,
-			quantityChanged: result.stock ?? 0,
-			stockAfter: result.stock ?? 0,
-			pricePerUnit: result.price ?? 0,
-			source: "manual_add",
-			label: "Thêm tồn kho",
-			triggeredBy: userId,
+			...buildStockLogPayload({
+				ownerId: owner._id,
+				userId,
+				item: result,
+				stockBefore: 0,
+				stockAfter: result.stock ?? 0,
+				source: "manual_add",
+				label: "Thêm tồn kho",
+			}),
 		}).catch((e) => console.error("StockLog create error:", e));
 		res.status(StatusCodes.CREATED).json(result);
 	} catch (err) {
@@ -177,19 +574,17 @@ const update = async (req, res, next) => {
 		// Tính diff và lưu log
 		const changes = oldItem ? buildChanges(oldItem, req.body) : [];
 		if (changes.length > 0) {
-			StockLog.create({
-				businessOwnerId: owner._id,
-				storageItemId: result._id,
-				itemName: result.name,
-				unit: result.unit,
-				quantityChanged: req.body.stock,
-				stockAfter: result.stock,
-				pricePerUnit: result.price ?? 0,
+			createStockLog(buildStockLogPayload({
+				ownerId: owner._id,
+				userId,
+				item: result,
+				stockBefore: oldItem.stock ?? 0,
+				stockAfter: result.stock ?? 0,
 				source: "manual_update",
 				label: "Cập nhật tồn kho",
 				changes,
-				triggeredBy: userId,
-			}).catch((e) => console.error("StockLog update error:", e));
+				reportable: req.body.stock !== undefined && result.stock !== oldItem.stock,
+			}));
 		}
 		res.status(StatusCodes.OK).json(result);
 	} catch (err) {
@@ -215,18 +610,15 @@ const remove = async (req, res, next) => {
 			owner._id,
 		);
 		if (oldItem) {
-			StockLog.create({
-				businessOwnerId: owner._id,
-				storageItemId: oldItem._id,
-				itemName: oldItem.name,
-				unit: oldItem.unit,
-				quantityChanged: oldItem.stock ?? 0,
+			createStockLog(buildStockLogPayload({
+				ownerId: owner._id,
+				userId,
+				item: oldItem,
+				stockBefore: oldItem.stock ?? 0,
 				stockAfter: 0,
-				pricePerUnit: oldItem.price ?? 0,
 				source: "manual_delete",
 				label: "Xoá khỏi kho",
-				triggeredBy: userId,
-			}).catch((e) => console.error("StockLog delete error:", e));
+			}));
 		}
 		res.status(StatusCodes.OK).json(result);
 	} catch (err) {
@@ -264,6 +656,7 @@ const syncStorageItems = async (req, res, next) => {
 		const userId = req.user.userId;
 		const owner = await getBusinessOwnerByUserId(userId);
 		const invoices = await InvoicesInService.getInvoices({
+			ownerId: owner._id,
 			isStorageSynced: false,
 		});
 
@@ -294,6 +687,9 @@ const syncStorageItems = async (req, res, next) => {
 						});
 
 						let action = "created";
+						let savedItem;
+						let stockBefore = 0;
+						let stockAfter = data.stock ?? 0;
 						if (existingItem) {
 							// Kiểm tra nếu match qua alias → cần quy đổi đơn vị
 							const matchedAlias = existingItem.syncAliases.find(
@@ -301,15 +697,32 @@ const syncStorageItems = async (req, res, next) => {
 							);
 							const factor = matchedAlias ? matchedAlias.conversionFactor : 1;
 							const addedStock = data.stock * factor;
-							await storageItemService.updateStorageItem(
+							stockBefore = existingItem.stock ?? 0;
+							stockAfter = stockBefore + addedStock;
+							savedItem = await storageItemService.updateStorageItem(
 								existingItem._id,
-								{ stock: existingItem.stock + addedStock },
+								{ stock: stockAfter },
 								owner._id,
 							);
 							action = "updated";
 						} else {
-							await storageItemService.createStorageItem(data, owner._id);
+							savedItem = await storageItemService.createStorageItem(data, owner._id);
+							stockAfter = savedItem.stock ?? 0;
 						}
+						createStockLog(buildStockLogPayload({
+							ownerId: owner._id,
+							userId,
+							item: savedItem,
+							stockBefore,
+							stockAfter,
+							source: "invoice_in",
+							label: "Nhập từ hóa đơn mua vào",
+							quantityChanged: Math.abs(stockAfter - stockBefore),
+							documentType: "invoice_in",
+							documentNumber: invoice.shdon || invoice.mhdon || invoice._id?.toString(),
+							documentDate: invoice.ntao || invoice.tdlap || invoice.createdAt,
+							counterpartyName: invoice.nbten || "",
+						}));
 						syncedItems.push({
 							name: data.name,
 							unit: data.unit,
@@ -559,7 +972,10 @@ const getStockSummary = async (req, res, next) => {
 		}
 
 		const { startDate, endDate } = req.query;
-		const matchStage = { businessOwnerId: owner._id };
+		const matchStage = {
+			businessOwnerId: owner._id,
+			$or: [{ reportable: true }, { reportable: { $exists: false } }],
+		};
 		if (startDate || endDate) {
 			matchStage.createdAt = {};
 			if (startDate) matchStage.createdAt.$gte = new Date(startDate);
@@ -571,13 +987,18 @@ const getStockSummary = async (req, res, next) => {
 			{
 				$addFields: {
 					stockDelta: {
-						$switch: {
-							branches: [
-								{ case: { $eq: ["$source", "manual_add"] }, then: { $ifNull: ["$quantityChanged", 0] } },
-								{ case: { $eq: ["$source", "manual_delete"] }, then: { $multiply: [{ $ifNull: ["$quantityChanged", 0] }, -1] } },
-							],
-							default: 0,
-						},
+						$ifNull: [
+							"$signedQuantity",
+							{
+								$switch: {
+									branches: [
+										{ case: { $in: ["$source", ["manual_add", "invoice_in"]] }, then: { $ifNull: ["$quantityChanged", 0] } },
+										{ case: { $in: ["$source", ["manual_delete", "invoice_out"]] }, then: { $multiply: [{ $ifNull: ["$quantityChanged", 0] }, -1] } },
+									],
+									default: 0,
+								},
+							},
+						],
 					},
 				},
 			},
@@ -587,15 +1008,15 @@ const getStockSummary = async (req, res, next) => {
 					itemName: { $last: "$itemName" },
 					unit: { $last: { $ifNull: ["$unit", ""] } },
 					totalAdded: {
-						$sum: { $cond: [{ $eq: ["$source", "manual_add"] }, { $ifNull: ["$quantityChanged", 0] }, 0] },
+						$sum: { $cond: [{ $gt: ["$stockDelta", 0] }, "$stockDelta", 0] },
 					},
 					totalDeleted: {
-						$sum: { $cond: [{ $eq: ["$source", "manual_delete"] }, { $ifNull: ["$quantityChanged", 0] }, 0] },
+						$sum: { $cond: [{ $lt: ["$stockDelta", 0] }, { $abs: "$stockDelta" }, 0] },
 					},
 					netChange: { $sum: "$stockDelta" },
-					countAdd: { $sum: { $cond: [{ $eq: ["$source", "manual_add"] }, 1, 0] } },
+					countAdd: { $sum: { $cond: [{ $gt: ["$stockDelta", 0] }, 1, 0] } },
 					countUpdate: { $sum: { $cond: [{ $eq: ["$source", "manual_update"] }, 1, 0] } },
-					countDelete: { $sum: { $cond: [{ $eq: ["$source", "manual_delete"] }, 1, 0] } },
+					countDelete: { $sum: { $cond: [{ $lt: ["$stockDelta", 0] }, 1, 0] } },
 					lastActivity: { $max: "$createdAt" },
 				},
 			},
@@ -653,16 +1074,17 @@ const mergeItems = async (req, res, next) => {
 
 		// Ghi StockLog cho hành động merge
 		StockLog.create({
-			businessOwnerId: owner._id,
-			storageItemId: updatedMaster._id,
-			itemName: updatedMaster.name,
-			unit: updatedMaster.unit,
-			quantityChanged: duplicateStockTransferred,
-			stockAfter: updatedMaster.stock,
-			pricePerUnit: updatedMaster.price ?? 0,
-			source: "merge",
-			label: `Gộp từ "${duplicateName}"`,
-			triggeredBy: userId,
+			...buildStockLogPayload({
+				ownerId: owner._id,
+				userId,
+				item: updatedMaster,
+				stockBefore: (updatedMaster.stock ?? 0) - duplicateStockTransferred,
+				stockAfter: updatedMaster.stock ?? 0,
+				source: "merge",
+				label: `Gộp từ "${duplicateName}"`,
+				quantityChanged: duplicateStockTransferred,
+				reportable: false,
+			}),
 		}).catch((e) => console.error("StockLog merge error:", e));
 
 		res.status(StatusCodes.OK).json(updatedMaster);
@@ -718,6 +1140,8 @@ export {
 	getSyncHistory,
 	getStockLogs,
 	getStockSummary,
+	getInventoryReport,
+	upsertOpeningBalance,
 	genTypeItem,
 	updateUnitConversion,
 	getIdByName,

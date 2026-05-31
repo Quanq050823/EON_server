@@ -66,6 +66,18 @@ router.get(
 	storageItemController.getStockSummary
 );
 router.get(
+	"/inventory-report",
+	authenticate,
+	authorization(["user", "admin"]),
+	storageItemController.getInventoryReport
+);
+router.post(
+	"/opening-balance",
+	authenticate,
+	authorization(["user", "admin"]),
+	storageItemController.upsertOpeningBalance
+);
+router.get(
 	"/:id",
 	authenticate,
 	authorization(["user", "admin"]),
