@@ -15,6 +15,7 @@ const EmployeeSchema = new mongoose.Schema({
 	position: { type: String },
 	hire_date: { type: Date },
 	status: { type: String, enum: ["active", "inactive"], default: "active" },
+	note: { type: String },
 	base_salary: { type: Number },
 	bank_account: {
 		bank_name: { type: String },
