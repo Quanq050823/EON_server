@@ -105,8 +105,11 @@ const loginService = async (data, isGoogle) => {
 	const accessToken = await jwtUtil.generateAccessToken(user);
 	const refreshToken = await jwtUtil.generateRefreshToken(user);
 
-	user.refreshToken = [...user.refreshToken, refreshToken];
-	await user.save();
+	await User.updateOne(
+		{ _id: user._id },
+		{ $push: { refreshToken: refreshToken } }
+	);
+
 	return {
 		accessToken: accessToken,
 		refreshToken: refreshToken,

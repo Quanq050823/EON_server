@@ -1,11 +1,14 @@
 import http from "k6/http";
 import { check, sleep } from "k6";
+import { Counter } from "k6/metrics";
 
 const BASE_URL = __ENV.BASE_URL || "https://dattax.duckdns.org";
 const LOGIN_ENDPOINT = __ENV.LOGIN_ENDPOINT || "/api/auth/login";
-const LOGIN_EMAIL = __ENV.LOGIN_EMAIL || "taphoahoangthai@gmail.com";
-const LOGIN_PASSWORD = __ENV.LOGIN_PASSWORD || "thht123A@";
+const LOGIN_EMAIL = __ENV.LOGIN_EMAIL;
+const LOGIN_PASSWORD = __ENV.LOGIN_PASSWORD;
 const LOGIN_URL = `${BASE_URL}${LOGIN_ENDPOINT}`;
+const DEBUG_FAILURES = __ENV.DEBUG_FAILURES === "true";
+const loginFailures = new Counter("login_failures");
 
 if (!LOGIN_EMAIL || !LOGIN_PASSWORD) {
 	throw new Error("Missing LOGIN_EMAIL or LOGIN_PASSWORD");
@@ -38,6 +41,14 @@ export default function () {
 			"Content-Type": "application/json",
 		},
 	});
+
+	if (res.status !== 200) {
+		loginFailures.add(1);
+
+		if (DEBUG_FAILURES && __ITER < 5) {
+			console.log(`login failed: status=${res.status} body=${res.body}`);
+		}
+	}
 
 	check(res, {
 		"status is 200": (r) => r.status === 200,
