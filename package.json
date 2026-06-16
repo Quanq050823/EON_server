@@ -8,6 +8,7 @@
 		"start": "node src/app.js",
 		"dev": "nodemon src/app.js",
 		"stress:k6:app": "k6 run tests/k6/app-stress-test.js",
+		"stress:k6:login": "k6 run tests/k6/login-stress-test.js",
 		"test": "echo \"Error: no test specified\" && exit 1"
 	},
 	"keywords": [
