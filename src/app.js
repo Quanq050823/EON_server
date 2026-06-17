@@ -14,6 +14,7 @@ import passport from "passport";
 const START_SERVER = () => {
 	const app = express();
 
+	app.set("trust proxy", true);
 	app.use(cookieParser());
 	app.use(
 		session({
