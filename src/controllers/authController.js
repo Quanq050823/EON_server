@@ -6,7 +6,10 @@ import config from "../config/environment.js";
 
 const createUser = async (req, res, next) => {
 	try {
-		let result = await authService.registerService(req.body);
+		let result = await authService.registerService(req.body, {
+			userAgent: req.get("user-agent"),
+			ip: req.ip,
+		});
 		// Set cookies giống như login
 		res.cookie("accessToken", result.accessToken, {
 			httpOnly: false,
@@ -53,7 +56,10 @@ const login = async (req, res, next) => {
 			});
 		}
 
-		let result = await authService.loginService(req.body, false);
+		let result = await authService.loginService(req.body, false, {
+			userAgent: req.get("user-agent"),
+			ip: req.ip,
+		});
 
 		res.cookie("accessToken", result.accessToken, {
 			httpOnly: false,
@@ -76,7 +82,10 @@ const login = async (req, res, next) => {
 
 const loginWithGoogle = async (req, res, next) => {
 	try {
-		let result = await authService.loginService(req?.user, true);
+		let result = await authService.loginService(req?.user, true, {
+			userAgent: req.get("user-agent"),
+			ip: req.ip,
+		});
 		res.cookie("accessToken", result.accessToken, {
 			httpOnly: false,
 			maxAge: 15 * 60 * 1000, //15 minutes
@@ -108,7 +117,9 @@ const isAuthenticated = async (req, res, next) => {
 
 const refreshToken = async (req, res, next) => {
 	try {
-		let result = await authService.refreshTokenService(req.body);
+		let result = await authService.refreshTokenService({
+			refreshToken: req.body?.refreshToken || req.cookies?.refreshToken,
+		});
 		if (result?.error) {
 			res.clearCookie("refreshToken", {
 				httpOnly: false,

@@ -1,6 +1,7 @@
 "use strict";
 
 import User from "./../models/User.js";
+import RefreshToken from "./../models/RefreshToken.js";
 // import { GET_DB } from "../config/mongodb.js";
 import ApiError from "../utils/ApiError.js";
 import { StatusCodes } from "http-status-codes";
@@ -72,9 +73,15 @@ const updateStatus = async (data) => {
 			throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
 		}
 
-		if (data?.isDeleted) result.refreshToken = [];
+		if (data?.isDeleted) {
+			result.refreshToken = [];
+			await RefreshToken.updateMany(
+				{ userId: result._id, revokedAt: null },
+				{ $set: { revokedAt: new Date() } }
+			);
+		}
 		result.isDeleted = data?.isDeleted;
-		result.save();
+		await result.save();
 
 		return {
 			message: data?.isDeleted
@@ -108,7 +115,11 @@ const updatePasswordService = async (user, data) => {
 		const salt = await bcrypt.genSalt(Number(config.salt));
 		const hashedPassword = await bcrypt.hash(data?.newPassword, salt);
 		foundUser.password = hashedPassword;
-		foundUser.save();
+		await foundUser.save();
+		await RefreshToken.updateMany(
+			{ userId: foundUser._id, revokedAt: null },
+			{ $set: { revokedAt: new Date() } }
+		);
 
 		// let response = ({ name, email, role, createdDate } = result);
 		return { message: "Password changed successfully" };

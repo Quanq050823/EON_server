@@ -1,10 +1,12 @@
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import config from "../config/environment.js";
 
 const generateToken = async (user, secret, exp) => {
 	try {
 		const token = jwt.sign({ userId: user._id, role: user.role }, secret, {
 			expiresIn: Number(exp),
+			jwtid: crypto.randomUUID(),
 		});
 		return token;
 	} catch (err) {

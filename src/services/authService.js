@@ -1,7 +1,9 @@
 "use strict";
 
 import User from "./../models/User.js";
+import RefreshToken from "./../models/RefreshToken.js";
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 import ApiError from "../utils/ApiError.js";
 import { StatusCodes } from "http-status-codes";
 import config from "../config/environment.js";
@@ -9,7 +11,31 @@ import * as jwtUtil from "../utils/jwtUtil.js";
 import { sendMail } from "../utils/mailer.js";
 import getObjectId from "../utils/objectId.js";
 
-const registerService = async (data) => {
+const hashRefreshToken = (refreshToken) => {
+	return crypto.createHash("sha256").update(refreshToken).digest("hex");
+};
+
+const getRefreshTokenExpiresAt = async (refreshToken) => {
+	const tokenDetails = await jwtUtil.verifyRefreshToken(refreshToken);
+
+	if (tokenDetails?.exp) {
+		return new Date(tokenDetails.exp * 1000);
+	}
+
+	return new Date(Date.now() + Number(config.refreshTokenExp) * 1000);
+};
+
+const createRefreshTokenSession = async (user, refreshToken, metadata = {}) => {
+	await RefreshToken.create({
+		userId: user._id,
+		tokenHash: hashRefreshToken(refreshToken),
+		expiresAt: await getRefreshTokenExpiresAt(refreshToken),
+		userAgent: metadata.userAgent,
+		ip: metadata.ip,
+	});
+};
+
+const registerService = async (data, metadata = {}) => {
 	try {
 		let user = await User.findOne({ email: data.email });
 		const salt = await bcrypt.genSalt(Number(config.salt));
@@ -43,10 +69,8 @@ const registerService = async (data) => {
 
 		const accessToken = await jwtUtil.generateAccessToken(user);
 		const refreshToken = await jwtUtil.generateRefreshToken(user);
-		console.log(accessToken, refreshToken);
 
-		user.refreshToken = [...user.refreshToken, refreshToken];
-		await user.save();
+		await createRefreshTokenSession(user, refreshToken, metadata);
 
 		await jwtUtil.generateAccessToken(user).then((token) => {
 			let link = `${config.beURL}/api/auth/verify-email?token=${token}`;
@@ -77,7 +101,7 @@ const registerService = async (data) => {
 	}
 };
 
-const loginService = async (data, isGoogle) => {
+const loginService = async (data, isGoogle, metadata = {}) => {
 	let user;
 	if (isGoogle) {
 		user = data;
@@ -105,10 +129,7 @@ const loginService = async (data, isGoogle) => {
 	const accessToken = await jwtUtil.generateAccessToken(user);
 	const refreshToken = await jwtUtil.generateRefreshToken(user);
 
-	await User.updateOne(
-		{ _id: user._id },
-		{ $push: { refreshToken: refreshToken } }
-	);
+	await createRefreshTokenSession(user, refreshToken, metadata);
 
 	return {
 		accessToken: accessToken,
@@ -122,8 +143,24 @@ const isLoggedIn = async (data) => {
 		if (!data?.accessToken && !data?.refreshToken) {
 			return { isAuthenticated: false };
 		}
-		if (data?.refreshToken)
-			await jwtUtil.verifyRefreshToken(data?.refreshToken);
+
+		if (data?.accessToken && !data?.refreshToken) {
+			await jwtUtil.verifyAccessToken(data.accessToken);
+		}
+
+		if (data?.refreshToken) {
+			const tokenDetails = await jwtUtil.verifyRefreshToken(data.refreshToken);
+			if (!tokenDetails) return { isAuthenticated: false };
+
+			const session = await RefreshToken.findOne({
+				tokenHash: hashRefreshToken(data.refreshToken),
+				revokedAt: null,
+				expiresAt: { $gt: new Date() },
+			});
+
+			if (!session) return { isAuthenticated: false };
+		}
+
 		return {
 			isAuthenticated: true,
 			accessToken: data?.accessToken,
@@ -137,38 +174,60 @@ const isLoggedIn = async (data) => {
 const refreshTokenService = async (data) => {
 	let refreshToken = data?.refreshToken;
 
-	console.log("refreshToken", refreshToken);
-
 	if (!refreshToken) {
 		throw new ApiError(StatusCodes.BAD_REQUEST, "No refresh token provided");
 	}
 
-	let foundUser = await User.findOne({ refreshToken: { $in: [refreshToken] } });
+	const tokenHash = hashRefreshToken(refreshToken);
+	const session = await RefreshToken.findOne({ tokenHash });
 
-	if (!foundUser) {
+	if (!session) {
 		throw new ApiError(
 			StatusCodes.BAD_REQUEST,
-			"Loi khong tim thay Invalid refresh token"
+			"Invalid refresh token"
 		);
 	}
 
-	const newRefreshTokenArray = foundUser.refreshToken.filter(
-		(rt) => rt !== refreshToken
-	);
+	const tokenDetails = await jwtUtil.verifyRefreshToken(refreshToken);
+	const now = new Date();
 
-	try {
-		let tokenDetails = await jwtUtil.verifyRefreshToken(refreshToken);
-	} catch (err) {
-		foundUser.refreshToken = newRefreshTokenArray;
-		await foundUser.save();
+	if (!tokenDetails || session.revokedAt || session.expiresAt <= now) {
+		await RefreshToken.updateOne(
+			{ _id: session._id, revokedAt: null },
+			{ $set: { revokedAt: now } }
+		);
+		return { error: "Invalid refresh token" };
+	}
+
+	let foundUser = await User.findById(session.userId);
+
+	if (!foundUser || foundUser.isDeleted || !foundUser.isVerified) {
+		await RefreshToken.updateOne(
+			{ _id: session._id, revokedAt: null },
+			{ $set: { revokedAt: now } }
+		);
 		return { error: "Invalid refresh token" };
 	}
 
 	const accessToken = await jwtUtil.generateAccessToken(foundUser);
 	const newRefreshToken = await jwtUtil.generateRefreshToken(foundUser);
+	const newTokenHash = hashRefreshToken(newRefreshToken);
 
-	foundUser.refreshToken = [...newRefreshTokenArray, newRefreshToken];
-	await foundUser.save();
+	const rotatedSession = await RefreshToken.findOneAndUpdate(
+		{ _id: session._id, tokenHash, revokedAt: null },
+		{
+			$set: {
+				tokenHash: newTokenHash,
+				expiresAt: await getRefreshTokenExpiresAt(newRefreshToken),
+				lastUsedAt: now,
+			},
+		},
+		{ new: true }
+	);
+
+	if (!rotatedSession) {
+		throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid refresh token");
+	}
 
 	return {
 		refreshToken: newRefreshToken,
@@ -181,19 +240,19 @@ const logoutService = async (data) => {
 	try {
 		let refreshToken = data.refreshToken;
 
-		let foundUser = await User.findOne({
-			refreshToken: { $in: [refreshToken] },
-		}).exec();
+		let revokedSession = await RefreshToken.findOneAndUpdate(
+			{
+				tokenHash: hashRefreshToken(refreshToken),
+				revokedAt: null,
+			},
+			{ $set: { revokedAt: new Date() } },
+			{ new: true }
+		);
 
-		if (!foundUser) {
+		if (!revokedSession) {
 			throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid refresh token");
 		}
 
-		foundUser.refreshToken = foundUser.refreshToken.filter(
-			(rt) => rt !== refreshToken
-		);
-
-		await foundUser.save();
 		return { message: "Logout successfully" };
 	} catch (error) {
 		throw error;
@@ -307,6 +366,10 @@ const changePasswordWithOtp = async (query, data) => {
 		user.password = hashedPassword;
 		user.otp.expires = new Date();
 		await user.save();
+		await RefreshToken.updateMany(
+			{ userId: user._id, revokedAt: null },
+			{ $set: { revokedAt: new Date() } }
+		);
 		return { message: "Password has been changed successfully" };
 	} catch (error) {
 		throw error;
