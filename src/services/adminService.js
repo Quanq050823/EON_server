@@ -15,6 +15,7 @@ import { StatusCodes } from "http-status-codes";
 import bcrypt from "bcryptjs";
 import * as easyInvoiceService from "./easyInvoiceService.js";
 import * as businessOwnerService from "./businessOwnerService.js";
+import * as storageItemService from "./storageItemService.js";
 
 // User Management
 const getAllUsers = async (filter = {}, options = {}) => {
@@ -207,6 +208,22 @@ const resolveAccessibleBusinessOwnerId = async (actor, requestedOwnerId) => {
 	}
 
 	return owner._id.toString();
+};
+
+const getBusinessOwnerTaxCredentials = async (ownerId) => {
+	const owner = await BusinessOwner.findById(ownerId)
+		.select("taxCode password")
+		.lean();
+	if (!owner) {
+		throw new ApiError(StatusCodes.NOT_FOUND, "Business owner not found");
+	}
+	if (!owner.taxCode || !owner.password) {
+		throw new ApiError(
+			StatusCodes.UNPROCESSABLE_ENTITY,
+			"Hộ kinh doanh chưa cấu hình mã số thuế hoặc mật khẩu Cơ quan Thuế",
+		);
+	}
+	return { username: owner.taxCode, password: owner.password };
 };
 
 const getBusinessOwnerById = async (ownerId) => {
@@ -502,6 +519,7 @@ const getStorageItemsByBusinessOwner = async (ownerId, options = {}) => {
 		sortOrder = -1,
 		search = "",
 		category = "",
+		syncStatus = "",
 	} = options;
 	const skip = (page - 1) * limit;
 
@@ -521,6 +539,9 @@ const getStorageItemsByBusinessOwner = async (ownerId, options = {}) => {
 	}
 	if (category) {
 		query.category = category;
+	}
+	if (syncStatus !== "") {
+		query.syncStatus = syncStatus === true || syncStatus === "true";
 	}
 
 	const [results, total] = await Promise.all([
@@ -677,6 +698,59 @@ const getTaxStatisticsByBusinessOwner = async (ownerId, options = {}) => {
 	};
 };
 
+const getUnclassifiedStorageItemsByBusinessOwner = async (ownerId) => {
+	return storageItemService.listStorageItems(
+		ownerId,
+		{ syncStatus: false },
+		{ sortBy: "createdAt", sortOrder: -1 },
+	);
+};
+
+const classifyStorageItemByBusinessOwner = async (ownerId, itemId, category) => {
+	if (![1, 2].includes(Number(category))) {
+		throw new ApiError(
+			StatusCodes.BAD_REQUEST,
+			"Category must be 1 (material) or 2 (tool)",
+		);
+	}
+	return storageItemService.generateTypeItems(
+		itemId,
+		{ category: Number(category) },
+		ownerId,
+	);
+};
+
+const updateStorageItemConversionByBusinessOwner = async (
+	ownerId,
+	itemId,
+	conversionData,
+) => {
+	const { from, to } = conversionData;
+	if (
+		!from ||
+		Number(from.itemQuantity) <= 0 ||
+		!Array.isArray(to) ||
+		to.length === 0 ||
+		to.some(
+			(item) =>
+				!item.itemName?.trim() || Number(item.itemQuantity) <= 0,
+		)
+	) {
+		throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid unit conversion data");
+	}
+	return storageItemService.updateUnitConversion(
+		itemId,
+		{
+			from: { itemQuantity: Number(from.itemQuantity) },
+			to: to.map((item) => ({
+				itemName: item.itemName.trim(),
+				itemQuantity: Number(item.itemQuantity),
+			})),
+		},
+		ownerId,
+	);
+};
+
 const getTaxDeadlineByBusinessOwner = async (ownerId) => {
 	return businessOwnerService.getTaxDeadlineInfoByBusinessOwnerId(ownerId);
 };
@@ -830,6 +904,7 @@ export {
 	getAllBusinessOwners,
 	getBusinessOwnerById,
 	resolveAccessibleBusinessOwnerId,
+	getBusinessOwnerTaxCredentials,
 	// Accountant Management
 	getAllAccountants,
 	getAccountantById,
@@ -842,6 +917,9 @@ export {
 	getOutputInvoicesByBusinessOwner,
 	// Storage Management
 	getStorageItemsByBusinessOwner,
+	getUnclassifiedStorageItemsByBusinessOwner,
+	classifyStorageItemByBusinessOwner,
+	updateStorageItemConversionByBusinessOwner,
 	// Product Management
 	getProductsByBusinessOwner,
 	// Tax Statistics

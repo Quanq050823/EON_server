@@ -2,6 +2,7 @@
 
 import express from "express";
 import * as adminController from "../controllers/adminController.js";
+import * as invoiceSyncController from "../controllers/invoiceSyncController.js";
 import authorization from "../middlewares/authorizationMiddleware.js";
 import authenticate from "../middlewares/jwtMiddlewares.js";
 
@@ -29,6 +30,16 @@ router.get(
 	businessOwnerAccess,
 	adminController.getInvoicesInByBusinessOwner,
 );
+router.post(
+	"/business-owners/:ownerId/invoice-sync/captcha",
+	businessOwnerAccess,
+	invoiceSyncController.getBusinessOwnerSyncCaptcha,
+);
+router.post(
+	"/business-owners/:ownerId/invoice-sync",
+	businessOwnerAccess,
+	invoiceSyncController.syncBusinessOwnerInvoices,
+);
 router.get(
 	"/business-owners/:ownerId/output-invoices",
 	businessOwnerAccess,
@@ -38,6 +49,21 @@ router.get(
 	"/business-owners/:ownerId/storage-items",
 	businessOwnerAccess,
 	adminController.getStorageItemsByBusinessOwner,
+);
+router.get(
+	"/business-owners/:ownerId/storage-items/unclassified",
+	businessOwnerAccess,
+	adminController.getUnclassifiedStorageItemsByBusinessOwner,
+);
+router.post(
+	"/business-owners/:ownerId/storage-items/:itemId/classify",
+	businessOwnerAccess,
+	adminController.classifyStorageItemByBusinessOwner,
+);
+router.put(
+	"/business-owners/:ownerId/storage-items/:itemId/unit-conversion",
+	businessOwnerAccess,
+	adminController.updateStorageItemConversionByBusinessOwner,
 );
 router.get(
 	"/business-owners/:ownerId/products",

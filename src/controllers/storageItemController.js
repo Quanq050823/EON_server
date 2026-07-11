@@ -741,10 +741,7 @@ const namesAndUnits = async (req, res, next) => {
 	}
 };
 
-const syncStorageItems = async (req, res, next) => {
-	try {
-		const userId = req.user.userId;
-		const owner = await getBusinessOwnerByUserId(userId);
+const syncStorageItemsForOwner = async (owner, userId) => {
 		const invoices = await InvoicesInService.getInvoices({
 			ownerId: owner._id,
 			isStorageSynced: false,
@@ -856,11 +853,20 @@ const syncStorageItems = async (req, res, next) => {
 			});
 		}
 
-		res.status(200).json({
+		return {
 			message: "Storage items synced successfully",
 			successCount,
 			failCount,
-		});
+			items: syncedItems,
+		};
+	};
+
+const syncStorageItems = async (req, res, next) => {
+	try {
+		const userId = req.user.userId;
+		const owner = await getBusinessOwnerByUserId(userId);
+		const result = await syncStorageItemsForOwner(owner, userId);
+		res.status(200).json(result);
 	} catch (error) {
 		next(error);
 	}
@@ -1227,6 +1233,7 @@ export {
 	remove,
 	namesAndUnits,
 	syncStorageItems,
+	syncStorageItemsForOwner,
 	getSyncHistory,
 	getStockLogs,
 	getStockSummary,

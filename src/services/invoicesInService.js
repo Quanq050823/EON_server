@@ -228,9 +228,6 @@ const fetchInvoicesFromGDTByStatus = async (gdtToken, dateFrom, dateTo, ttxly) =
 };
 
 const fetchInvoicesFromGDT = async (gdtToken, dateFrom, dateTo) => {
-	console.log("🚀 ~ fetchInvoicesFromGDT ~ dateTo:", dateTo)
-	console.log("🚀 ~ fetchInvoicesFromGDT ~ dateFrom:", dateFrom)
-	console.log("🚀 ~ fetchInvoicesFromGDT ~ gdtToken:", gdtToken)
 	const [invoicesStatus5, invoicesStatus8] = await Promise.all([
 		fetchInvoicesFromGDTByStatus(gdtToken, dateFrom, dateTo, 5),
 		fetchInvoicesFromGDTByStatus(gdtToken, dateFrom, dateTo, 8),
@@ -256,8 +253,7 @@ const fetchInvoiceDetailFromGDT = async (gdtToken, nbmst, khhdon, shdon, khmshdo
 	return response.data;
 };
 
-const syncListInvoicesDetailsFromThirdParty = async (userId, gdtToken) => {
-	const owner = await getBusinessOwnerByUserId(userId);
+const syncInvoicesForBusinessOwner = async (owner, gdtToken) => {
 
 	const latestInvoice = await InvoicesIn.findOne({ ownerId: owner._id })
 		.sort({ ncnhat: -1 })
@@ -274,10 +270,10 @@ const syncListInvoicesDetailsFromThirdParty = async (userId, gdtToken) => {
 
 		let startDate;
 		if (owner.tax_filing_frequency === 1) {
-			startDate = new Date(year, month, 1);
-		} else {
 			const quarterStartMonth = Math.floor(month / 3) * 3;
 			startDate = new Date(year, quarterStartMonth, 1);
+		} else {
+			startDate = new Date(year, month, 1);
 		}
 		const yyyy = startDate.getFullYear();
 		const mm = String(startDate.getMonth() + 1).padStart(2, "0");
@@ -313,10 +309,9 @@ const syncListInvoicesDetailsFromThirdParty = async (userId, gdtToken) => {
 				chunk.to,
 			);
 
-			console.log(`Found ${invoices.length} invoices in chunk [${chunk.from} → ${chunk.to}]`);
-			invoices.forEach((inv, i) => {
-				console.log(`  → [${i}] nbmst=${inv.nbmst} khhdon=${inv.khhdon} shdon=${inv.shdon} khmshdon=${inv.khmshdon}`);
-			});
+			console.log(
+				`Found ${invoices.length} invoices in chunk [${chunk.from} → ${chunk.to}]`,
+			);
 
 			let chunkSync = 0,
 				chunkSkip = 0,
@@ -410,6 +405,19 @@ const syncListInvoicesDetailsFromThirdParty = async (userId, gdtToken) => {
 	};
 };
 
+const syncListInvoicesDetailsFromThirdParty = async (userId, gdtToken) => {
+	const owner = await getBusinessOwnerByUserId(userId);
+	return syncInvoicesForBusinessOwner(owner, gdtToken);
+};
+
+const syncInvoicesByBusinessOwnerId = async (ownerId, gdtToken) => {
+	const owner = await BusinessOwner.findById(ownerId);
+	if (!owner) {
+		throw new ApiError(StatusCodes.NOT_FOUND, "BusinessOwner not found");
+	}
+	return syncInvoicesForBusinessOwner(owner, gdtToken);
+};
+
 const getInvoiceDetailFromThirdParty = async (
 	userId,
 	nbmst,
@@ -445,5 +453,6 @@ export default {
 	getBusinessOwnerByUserId,
 	syncInvoicesFromThirdParty,
 	syncListInvoicesDetailsFromThirdParty,
+	syncInvoicesByBusinessOwnerId,
 	getInvoiceDetailFromThirdParty,
 };

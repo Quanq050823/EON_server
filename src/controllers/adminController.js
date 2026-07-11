@@ -221,7 +221,8 @@ const getStorageItemsByBusinessOwner = async (req, res, next) => {
 			req.user,
 			req.params.ownerId,
 		);
-		const { page, limit, sortBy, sortOrder, search, category } = req.query;
+		const { page, limit, sortBy, sortOrder, search, category, syncStatus } =
+			req.query;
 		const options = {
 			page: parseInt(page) || 1,
 			limit: parseInt(limit) || 10,
@@ -229,6 +230,7 @@ const getStorageItemsByBusinessOwner = async (req, res, next) => {
 			sortOrder: parseInt(sortOrder) || -1,
 			search: search || "",
 			category: category || "",
+			syncStatus: syncStatus ?? "",
 		};
 		const result = await adminService.getStorageItemsByBusinessOwner(
 			ownerId,
@@ -280,6 +282,55 @@ const getTaxStatisticsByBusinessOwner = async (req, res, next) => {
 			ownerId,
 			options,
 		);
+		res.status(StatusCodes.OK).json(result);
+	} catch (err) {
+		next(err);
+	}
+};
+
+const getUnclassifiedStorageItemsByBusinessOwner = async (req, res, next) => {
+	try {
+		const ownerId = await adminService.resolveAccessibleBusinessOwnerId(
+			req.user,
+			req.params.ownerId,
+		);
+		const result =
+			await adminService.getUnclassifiedStorageItemsByBusinessOwner(ownerId);
+		res.status(StatusCodes.OK).json(result);
+	} catch (err) {
+		next(err);
+	}
+};
+
+const classifyStorageItemByBusinessOwner = async (req, res, next) => {
+	try {
+		const ownerId = await adminService.resolveAccessibleBusinessOwnerId(
+			req.user,
+			req.params.ownerId,
+		);
+		const result = await adminService.classifyStorageItemByBusinessOwner(
+			ownerId,
+			req.params.itemId,
+			req.body.category,
+		);
+		res.status(StatusCodes.OK).json(result);
+	} catch (err) {
+		next(err);
+	}
+};
+
+const updateStorageItemConversionByBusinessOwner = async (req, res, next) => {
+	try {
+		const ownerId = await adminService.resolveAccessibleBusinessOwnerId(
+			req.user,
+			req.params.ownerId,
+		);
+		const result =
+			await adminService.updateStorageItemConversionByBusinessOwner(
+				ownerId,
+				req.params.itemId,
+				req.body,
+			);
 		res.status(StatusCodes.OK).json(result);
 	} catch (err) {
 		next(err);
@@ -360,6 +411,9 @@ export {
 	getOutputInvoicesByBusinessOwner,
 	// Storage Management
 	getStorageItemsByBusinessOwner,
+	getUnclassifiedStorageItemsByBusinessOwner,
+	classifyStorageItemByBusinessOwner,
+	updateStorageItemConversionByBusinessOwner,
 	// Product Management
 	getProductsByBusinessOwner,
 	// Tax Statistics
