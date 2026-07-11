@@ -174,6 +174,16 @@ const calculateTaxDeadline = (filingFrequency) => {
 
 const getTaxDeadlineInfo = async (userId) => {
 	const businessOwner = await getBusinessOwnerByUserId(userId);
+	return getTaxDeadlineInfoByBusinessOwnerId(businessOwner._id);
+};
+
+const getTaxDeadlineInfoByBusinessOwnerId = async (ownerId) => {
+	const businessOwner = await BusinessOwner.findById(ownerId).select(
+		"tax_filing_frequency",
+	);
+	if (!businessOwner) {
+		throw new ApiError(StatusCodes.NOT_FOUND, "Business owner not found");
+	}
 	const filingFrequency = businessOwner.tax_filing_frequency || 2; // Default là tháng
 
 	const deadlineInfo = calculateTaxDeadline(filingFrequency);
@@ -214,5 +224,6 @@ export {
 	deleteBusinessOwner,
 	listBusinessOwners,
 	getTaxDeadlineInfo,
+	getTaxDeadlineInfoByBusinessOwnerId,
 	updateEasyInvoiceInfo,
 };

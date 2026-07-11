@@ -7,57 +7,71 @@ import authenticate from "../middlewares/jwtMiddlewares.js";
 
 const router = express.Router();
 
-// All admin routes require authentication and admin role
+// All routes require authentication. Authorization is applied per resource.
 router.use(authenticate);
-router.use(authorization(["admin"]));
+
+const adminOnly = authorization(["admin"]);
+const businessOwnerAccess = authorization(["admin", "user"]);
 
 // User Management Routes
-router.get("/users", adminController.getAllUsers);
-router.get("/users/:userId", adminController.getUserById);
-router.post("/users", adminController.createUser);
-router.put("/users/:userId", adminController.updateUser);
-router.delete("/users/:userId", adminController.deleteUser);
-router.patch("/users/:userId/role", adminController.updateUserRole);
+router.get("/users", adminOnly, adminController.getAllUsers);
+router.get("/users/:userId", adminOnly, adminController.getUserById);
+router.post("/users", adminOnly, adminController.createUser);
+router.put("/users/:userId", adminOnly, adminController.updateUser);
+router.delete("/users/:userId", adminOnly, adminController.deleteUser);
+router.patch("/users/:userId/role", adminOnly, adminController.updateUserRole);
 
 // Business Owner Management Routes
-router.get("/business-owners", adminController.getAllBusinessOwners);
-router.get("/business-owners/:ownerId", adminController.getBusinessOwnerById);
+router.get("/business-owners", businessOwnerAccess, adminController.getAllBusinessOwners);
+router.get("/business-owners/:ownerId", businessOwnerAccess, adminController.getBusinessOwnerById);
 router.get(
 	"/business-owners/:ownerId/invoices-in",
+	businessOwnerAccess,
 	adminController.getInvoicesInByBusinessOwner,
 );
 router.get(
 	"/business-owners/:ownerId/output-invoices",
+	businessOwnerAccess,
 	adminController.getOutputInvoicesByBusinessOwner,
 );
 router.get(
 	"/business-owners/:ownerId/storage-items",
+	businessOwnerAccess,
 	adminController.getStorageItemsByBusinessOwner,
 );
 router.get(
 	"/business-owners/:ownerId/products",
+	businessOwnerAccess,
 	adminController.getProductsByBusinessOwner,
 );
 router.get(
 	"/business-owners/:ownerId/tax-statistics",
+	businessOwnerAccess,
 	adminController.getTaxStatisticsByBusinessOwner,
 );
 router.get(
+	"/business-owners/:ownerId/tax-deadline",
+	businessOwnerAccess,
+	adminController.getTaxDeadlineByBusinessOwner,
+);
+router.get(
 	"/business-owners/:ownerId/easy-invoices",
+	businessOwnerAccess,
 	adminController.getEasyInvoicesByBusinessOwner,
 );
 router.post(
 	"/business-owners/:ownerId/easy-invoices/view",
+	businessOwnerAccess,
 	adminController.viewInvoiceByBusinessOwner,
 );
 
 // Accountant Management Routes
-router.get("/accountants", adminController.getAllAccountants);
-router.get("/accountants/:accountantId", adminController.getAccountantById);
+router.get("/accountants", adminOnly, adminController.getAllAccountants);
+router.get("/accountants/:accountantId", adminOnly, adminController.getAccountantById);
 
 // Statistics & Dashboard Routes
-router.get("/stats/system", adminController.getSystemStats);
-router.get("/stats/users", adminController.getUserStats);
-router.get("/stats/invoices", adminController.getInvoiceStats);
+router.get("/stats/system", adminOnly, adminController.getSystemStats);
+router.get("/stats/users", adminOnly, adminController.getUserStats);
+router.get("/stats/invoices", adminOnly, adminController.getInvoiceStats);
 
 export default router;

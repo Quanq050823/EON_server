@@ -14,6 +14,7 @@ import ApiError from "../utils/ApiError.js";
 import { StatusCodes } from "http-status-codes";
 import bcrypt from "bcryptjs";
 import * as easyInvoiceService from "./easyInvoiceService.js";
+import * as businessOwnerService from "./businessOwnerService.js";
 
 // User Management
 const getAllUsers = async (filter = {}, options = {}) => {
@@ -156,7 +157,7 @@ const updateUserRole = async (userId, role) => {
 };
 
 // Business Owner Management
-const getAllBusinessOwners = async (options = {}) => {
+const getAllBusinessOwners = async (options = {}, actor) => {
 	const {
 		page = 1,
 		limit = 10,
@@ -165,14 +166,16 @@ const getAllBusinessOwners = async (options = {}) => {
 	} = options;
 	const skip = (page - 1) * limit;
 
+	const filter = actor?.role === "admin" ? {} : { userId: actor?.userId };
+
 	const [results, total] = await Promise.all([
-		BusinessOwner.find()
+		BusinessOwner.find(filter)
 			.populate("userId", "name email avatar isVerified")
 			.sort({ [sortBy]: sortOrder })
 			.skip(skip)
 			.limit(limit)
 			.lean(),
-		BusinessOwner.countDocuments(),
+		BusinessOwner.countDocuments(filter),
 	]);
 
 	return {
@@ -185,6 +188,25 @@ const getAllBusinessOwners = async (options = {}) => {
 			pages: Math.ceil(total / limit),
 		},
 	};
+};
+
+const resolveAccessibleBusinessOwnerId = async (actor, requestedOwnerId) => {
+	if (actor?.role === "admin") return requestedOwnerId;
+
+	const owner = await BusinessOwner.findOne({ userId: actor?.userId })
+		.select("_id")
+		.lean();
+	if (!owner) {
+		throw new ApiError(StatusCodes.NOT_FOUND, "Business owner not found");
+	}
+	if (owner._id.toString() !== requestedOwnerId) {
+		throw new ApiError(
+			StatusCodes.FORBIDDEN,
+			"You are not authorized to access this business owner",
+		);
+	}
+
+	return owner._id.toString();
 };
 
 const getBusinessOwnerById = async (ownerId) => {
@@ -655,6 +677,10 @@ const getTaxStatisticsByBusinessOwner = async (ownerId, options = {}) => {
 	};
 };
 
+const getTaxDeadlineByBusinessOwner = async (ownerId) => {
+	return businessOwnerService.getTaxDeadlineInfoByBusinessOwnerId(ownerId);
+};
+
 const getEasyInvoicesByBusinessOwner = async (ownerId, options = {}) => {
 	const { page = 1, pageSize = 20 } = options;
 	// Get business owner info
@@ -803,6 +829,7 @@ export {
 	// Business Owner Management
 	getAllBusinessOwners,
 	getBusinessOwnerById,
+	resolveAccessibleBusinessOwnerId,
 	// Accountant Management
 	getAllAccountants,
 	getAccountantById,
@@ -819,6 +846,7 @@ export {
 	getProductsByBusinessOwner,
 	// Tax Statistics
 	getTaxStatisticsByBusinessOwner,
+	getTaxDeadlineByBusinessOwner,
 	// EasyInvoice Management
 	getEasyInvoicesByBusinessOwner,
 	viewInvoiceByBusinessOwner,

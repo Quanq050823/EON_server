@@ -88,7 +88,7 @@ const getAllBusinessOwners = async (req, res, next) => {
 			sortBy: sortBy || "createdAt",
 			sortOrder: parseInt(sortOrder) || -1,
 		};
-		const result = await adminService.getAllBusinessOwners(options);
+		const result = await adminService.getAllBusinessOwners(options, req.user);
 		res.status(StatusCodes.OK).json(result);
 	} catch (err) {
 		next(err);
@@ -97,7 +97,10 @@ const getAllBusinessOwners = async (req, res, next) => {
 
 const getBusinessOwnerById = async (req, res, next) => {
 	try {
-		const { ownerId } = req.params;
+		const ownerId = await adminService.resolveAccessibleBusinessOwnerId(
+			req.user,
+			req.params.ownerId,
+		);
 		const result = await adminService.getBusinessOwnerById(ownerId);
 		res.status(StatusCodes.OK).json(result);
 	} catch (err) {
@@ -164,7 +167,10 @@ const getInvoiceStats = async (req, res, next) => {
 // Invoice Management
 const getInvoicesInByBusinessOwner = async (req, res, next) => {
 	try {
-		const { ownerId } = req.params;
+		const ownerId = await adminService.resolveAccessibleBusinessOwnerId(
+			req.user,
+			req.params.ownerId,
+		);
 		const { page, limit, sortBy, sortOrder, search, status } = req.query;
 		const options = {
 			page: parseInt(page) || 1,
@@ -186,7 +192,10 @@ const getInvoicesInByBusinessOwner = async (req, res, next) => {
 
 const getOutputInvoicesByBusinessOwner = async (req, res, next) => {
 	try {
-		const { ownerId } = req.params;
+		const ownerId = await adminService.resolveAccessibleBusinessOwnerId(
+			req.user,
+			req.params.ownerId,
+		);
 		const { page, limit, sortBy, sortOrder, search, status } = req.query;
 		const options = {
 			page: parseInt(page) || 1,
@@ -208,7 +217,10 @@ const getOutputInvoicesByBusinessOwner = async (req, res, next) => {
 
 const getStorageItemsByBusinessOwner = async (req, res, next) => {
 	try {
-		const { ownerId } = req.params;
+		const ownerId = await adminService.resolveAccessibleBusinessOwnerId(
+			req.user,
+			req.params.ownerId,
+		);
 		const { page, limit, sortBy, sortOrder, search, category } = req.query;
 		const options = {
 			page: parseInt(page) || 1,
@@ -230,7 +242,10 @@ const getStorageItemsByBusinessOwner = async (req, res, next) => {
 
 const getProductsByBusinessOwner = async (req, res, next) => {
 	try {
-		const { ownerId } = req.params;
+		const ownerId = await adminService.resolveAccessibleBusinessOwnerId(
+			req.user,
+			req.params.ownerId,
+		);
 		const { page, limit, sortBy, sortOrder, search, category, isActive } =
 			req.query;
 		const options = {
@@ -255,7 +270,10 @@ const getProductsByBusinessOwner = async (req, res, next) => {
 // Tax Statistics
 const getTaxStatisticsByBusinessOwner = async (req, res, next) => {
 	try {
-		const { ownerId } = req.params;
+		const ownerId = await adminService.resolveAccessibleBusinessOwnerId(
+			req.user,
+			req.params.ownerId,
+		);
 		const { period, year, month, quarter } = req.query;
 		const options = { period, year, month, quarter };
 		const result = await adminService.getTaxStatisticsByBusinessOwner(
@@ -268,9 +286,25 @@ const getTaxStatisticsByBusinessOwner = async (req, res, next) => {
 	}
 };
 
+const getTaxDeadlineByBusinessOwner = async (req, res, next) => {
+	try {
+		const ownerId = await adminService.resolveAccessibleBusinessOwnerId(
+			req.user,
+			req.params.ownerId,
+		);
+		const result = await adminService.getTaxDeadlineByBusinessOwner(ownerId);
+		res.status(StatusCodes.OK).json(result);
+	} catch (err) {
+		next(err);
+	}
+};
+
 const getEasyInvoicesByBusinessOwner = async (req, res, next) => {
 	try {
-		const { ownerId } = req.params;
+		const ownerId = await adminService.resolveAccessibleBusinessOwnerId(
+			req.user,
+			req.params.ownerId,
+		);
 		const { page, pageSize } = req.query;
 		const options = {
 			page: parseInt(page) || 1,
@@ -285,7 +319,10 @@ const getEasyInvoicesByBusinessOwner = async (req, res, next) => {
 
 const viewInvoiceByBusinessOwner = async (req, res, next) => {
 	try {
-		const { ownerId } = req.params;
+		const ownerId = await adminService.resolveAccessibleBusinessOwnerId(
+			req.user,
+			req.params.ownerId,
+		);
 		const { Ikey, Pattern, Option, Serial } = req.body;
 		const result = await adminService.viewInvoiceByBusinessOwner(
 			ownerId,
@@ -327,6 +364,7 @@ export {
 	getProductsByBusinessOwner,
 	// Tax Statistics
 	getTaxStatisticsByBusinessOwner,
+	getTaxDeadlineByBusinessOwner,
 	// EasyInvoice Management
 	getEasyInvoicesByBusinessOwner,
 	viewInvoiceByBusinessOwner,

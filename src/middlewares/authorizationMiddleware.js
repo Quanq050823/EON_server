@@ -4,8 +4,7 @@ import { StatusCodes } from "http-status-codes";
 const auth = (roles) => {
 	return async (req, res, next) => {
 		try {
-			roles.push("user");
-			if (req.user && req.user.role && req.user.role.includes(...roles)) {
+			if (req.user?.role && roles.includes(req.user.role)) {
 				next();
 			} else {
 				res
