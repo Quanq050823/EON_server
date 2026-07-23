@@ -110,8 +110,8 @@ export const exportInvoiceOutputEaseInvoice = async (
 		const res = await axiosInstance.post<
 			EaseInvoiceResponse | EaseInvoiceApiResponse
 		>(
-			// `easyinvoice/importInvoice`, //XUẤT HÓA ĐƠN CHƯA PHÁT HÀNH
-			`easyinvoice/import-and-issue-invoice`, //XUẤT HÓA ĐƠN VÀ PHÁT HÀNH NGAY
+			`easyinvoice/importInvoice`, //XUẤT HÓA ĐƠN CHƯA PHÁT HÀNH
+			// `easyinvoice/import-and-issue-invoice`, //XUẤT HÓA ĐƠN VÀ PHÁT HÀNH NGAY
 			invoiceData,
 		);
 

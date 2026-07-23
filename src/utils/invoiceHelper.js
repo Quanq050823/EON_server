@@ -12,8 +12,9 @@ export const calculateInvoiceTotals = (products) => {
 	products.forEach((product) => {
 		// Calculate product totals if not provided
 		const prodTotal = product.total || product.quantity * product.price;
+		const vatRate = Number(product.vatRate) > 0 ? Number(product.vatRate) : 0;
 		const prodVATAmount =
-			product.vatAmount || (prodTotal * product.vatRate) / 100;
+			product.vatAmount ?? (prodTotal * vatRate) / 100;
 		const prodAmount = product.amount || prodTotal + prodVATAmount;
 
 		// Update product with calculated values

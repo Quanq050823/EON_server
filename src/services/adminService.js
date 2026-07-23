@@ -16,6 +16,9 @@ import bcrypt from "bcryptjs";
 import * as easyInvoiceService from "./easyInvoiceService.js";
 import * as businessOwnerService from "./businessOwnerService.js";
 import * as storageItemService from "./storageItemService.js";
+import { createOutputInvoice } from "./outputInvoiceService.js";
+import { processInvoiceData } from "../utils/invoiceHelper.js";
+import { buildInvoiceXML } from "../utils/xmlBuilder.js";
 
 // User Management
 const getAllUsers = async (filter = {}, options = {}) => {
@@ -892,6 +895,153 @@ const viewInvoiceByBusinessOwner = async (
 	};
 };
 
+const VALID_PAYMENT_METHODS = new Set(["TM", "CK", "KHAC"]);
+const VALID_VAT_RATES = new Set([-5, -3, -2, -1, 0, 5, 8, 10]);
+
+const normalizeEasyInvoicePayload = (invoiceData) => {
+	if (!invoiceData || typeof invoiceData !== "object") {
+		throw new ApiError(StatusCodes.BAD_REQUEST, "invoiceData is required");
+	}
+
+	const paymentMethod = invoiceData.paymentMethod || "TM";
+	if (!VALID_PAYMENT_METHODS.has(paymentMethod)) {
+		throw new ApiError(
+			StatusCodes.BAD_REQUEST,
+			"Phương thức thanh toán không hợp lệ",
+		);
+	}
+
+	if (!Array.isArray(invoiceData.products) || invoiceData.products.length === 0) {
+		throw new ApiError(
+			StatusCodes.BAD_REQUEST,
+			"Hóa đơn phải có ít nhất một hàng hóa hoặc dịch vụ",
+		);
+	}
+
+	const products = invoiceData.products.map((product, index) => {
+		const name = String(product?.name || "").trim();
+		const unit = String(product?.unit || "").trim();
+		const quantity = Number(product?.quantity);
+		const price = Number(product?.price);
+		const vatRate = Number(product?.vatRate);
+
+		if (!name || !unit) {
+			throw new ApiError(
+				StatusCodes.BAD_REQUEST,
+				`Dòng hàng ${index + 1} thiếu tên hoặc đơn vị tính`,
+			);
+		}
+		if (!Number.isFinite(quantity) || quantity <= 0) {
+			throw new ApiError(
+				StatusCodes.BAD_REQUEST,
+				`Số lượng ở dòng hàng ${index + 1} phải lớn hơn 0`,
+			);
+		}
+		if (!Number.isFinite(price) || price < 0) {
+			throw new ApiError(
+				StatusCodes.BAD_REQUEST,
+				`Đơn giá ở dòng hàng ${index + 1} không hợp lệ`,
+			);
+		}
+		if (!VALID_VAT_RATES.has(vatRate)) {
+			throw new ApiError(
+				StatusCodes.BAD_REQUEST,
+				`Thuế suất ở dòng hàng ${index + 1} không hợp lệ`,
+			);
+		}
+
+		return { name, unit, quantity, price, vatRate };
+	});
+
+	return processInvoiceData({
+		...invoiceData,
+		customerName:
+			String(invoiceData.customerName || "").trim() || "Khách vãng lai",
+		customerAddress: String(invoiceData.customerAddress || "").trim(),
+		customerTaxCode: String(invoiceData.customerTaxCode || "").trim(),
+		paymentMethod,
+		products,
+	});
+};
+
+const mapEasyInvoiceToOutputInvoice = (invoiceData) => ({
+	nmmst: invoiceData.customerTaxCode || "",
+	nmten: invoiceData.customerName || "Khách vãng lai",
+	nmdchi: invoiceData.customerAddress || "",
+	tgtttbso: invoiceData.amount || 0,
+	tgtttbchu: invoiceData.amountInWords || "",
+	thtttoan: invoiceData.paymentMethod || "",
+	hdhhdvu: invoiceData.products.map((product, index) => ({
+		id: String(index + 1),
+		stt: String(index + 1),
+		ten: product.name,
+		dvtinh: product.unit,
+		sluong: String(product.quantity),
+		dgia: String(product.price),
+		thtien: String(product.total || product.quantity * product.price),
+		tchat: String(product.tchat || 0),
+	})),
+});
+
+const importAndIssueInvoiceByBusinessOwner = async (ownerId, invoiceData) => {
+	const owner = await BusinessOwner.findById(ownerId).lean();
+	if (!owner) {
+		throw new ApiError(StatusCodes.NOT_FOUND, "Business owner not found");
+	}
+
+	const { account, password, serial, apiUrl } = owner.easyInvoiceInfo || {};
+	if (!account || !password || !serial) {
+		throw new ApiError(
+			StatusCodes.BAD_REQUEST,
+			"Thiếu cấu hình tài khoản EasyInvoice của hộ kinh doanh",
+		);
+	}
+
+	const normalizedInvoiceData = normalizeEasyInvoicePayload(invoiceData);
+	const xmlData = buildInvoiceXML(normalizedInvoiceData);
+	const result = await easyInvoiceService.ImportAndIssueInvoice(
+		xmlData,
+		account,
+		password,
+		serial,
+		apiUrl,
+	);
+
+	if (Number(result?.Status) !== 1) {
+		const keyMessage = result?.Data?.KeyInvoiceMsg
+			? Object.values(result.Data.KeyInvoiceMsg)[0]
+			: null;
+		return {
+			success: false,
+			message: keyMessage || result?.Message || "Phát hành hóa đơn thất bại",
+			data: result,
+			invoiceData: normalizedInvoiceData,
+			savedInvoice: null,
+		};
+	}
+
+	try {
+		const savedInvoice = await createOutputInvoice(
+			mapEasyInvoiceToOutputInvoice(normalizedInvoiceData),
+			owner.userId,
+		);
+		return {
+			success: true,
+			data: result,
+			invoiceData: normalizedInvoiceData,
+			savedInvoice,
+		};
+	} catch (error) {
+		return {
+			success: true,
+			data: result,
+			invoiceData: normalizedInvoiceData,
+			savedInvoice: null,
+			warning: `Hóa đơn đã được phát hành trên EasyInvoice nhưng lưu dữ liệu nội bộ thất bại: ${error.message}`,
+		};
+	}
+};
+
 export {
 	// User Management
 	getAllUsers,
@@ -928,4 +1078,5 @@ export {
 	// EasyInvoice Management
 	getEasyInvoicesByBusinessOwner,
 	viewInvoiceByBusinessOwner,
+	importAndIssueInvoiceByBusinessOwner,
 };

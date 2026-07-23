@@ -90,6 +90,11 @@ router.post(
 	businessOwnerAccess,
 	adminController.viewInvoiceByBusinessOwner,
 );
+router.post(
+	"/business-owners/:ownerId/easy-invoices/import-and-issue",
+	businessOwnerAccess,
+	adminController.importAndIssueInvoiceByBusinessOwner,
+);
 
 // Accountant Management Routes
 router.get("/accountants", adminOnly, adminController.getAllAccountants);

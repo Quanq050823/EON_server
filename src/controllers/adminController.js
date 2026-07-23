@@ -388,6 +388,22 @@ const viewInvoiceByBusinessOwner = async (req, res, next) => {
 	}
 };
 
+const importAndIssueInvoiceByBusinessOwner = async (req, res, next) => {
+	try {
+		const ownerId = await adminService.resolveAccessibleBusinessOwnerId(
+			req.user,
+			req.params.ownerId,
+		);
+		const result = await adminService.importAndIssueInvoiceByBusinessOwner(
+			ownerId,
+			req.body?.invoiceData,
+		);
+		res.status(StatusCodes.OK).json(result);
+	} catch (err) {
+		next(err);
+	}
+};
+
 export {
 	// User Management
 	getAllUsers,
@@ -422,4 +438,5 @@ export {
 	// EasyInvoice Management
 	getEasyInvoicesByBusinessOwner,
 	viewInvoiceByBusinessOwner,
+	importAndIssueInvoiceByBusinessOwner,
 };
