@@ -3,6 +3,7 @@
 import * as adminService from "../services/adminService.js";
 import * as inventoryAnalyticsService from "../services/inventoryAnalyticsService.js";
 import * as syncHistoryService from "../services/syncHistoryService.js";
+import * as stockLogService from "../services/stockLogService.js";
 import { StatusCodes } from "http-status-codes";
 
 // User Management
@@ -332,6 +333,19 @@ const getStockSummaryByBusinessOwner = async (req, res, next) => {
 	}
 };
 
+const getStockLogsByBusinessOwner = async (req, res, next) => {
+	try {
+		const ownerId = await adminService.resolveAccessibleBusinessOwnerId(
+			req.user,
+			req.params.ownerId,
+		);
+		const result = await stockLogService.listByOwner(ownerId, req.query);
+		res.status(StatusCodes.OK).json(result);
+	} catch (err) {
+		next(err);
+	}
+};
+
 const getInventoryReportByBusinessOwner = async (req, res, next) => {
 	try {
 		const ownerId = await adminService.resolveAccessibleBusinessOwnerId(
@@ -507,6 +521,7 @@ export {
 	getSyncedStorageItemsByBusinessOwner,
 	getSyncHistoryByBusinessOwner,
 	getStockSummaryByBusinessOwner,
+	getStockLogsByBusinessOwner,
 	getInventoryReportByBusinessOwner,
 	upsertOpeningBalanceByBusinessOwner,
 	getUnclassifiedStorageItemsByBusinessOwner,

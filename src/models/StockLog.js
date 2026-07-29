@@ -68,6 +68,7 @@ const StockLogSchema = new mongoose.Schema(
 
 StockLogSchema.index({ businessOwnerId: 1, storageItemId: 1, createdAt: 1 });
 StockLogSchema.index({ businessOwnerId: 1, source: 1, storageItemId: 1 });
+StockLogSchema.index({ businessOwnerId: 1, createdAt: -1 });
 
 const StockLog = mongoose.model("StockLog", StockLogSchema);
 export default StockLog;

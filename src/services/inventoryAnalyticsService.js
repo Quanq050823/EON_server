@@ -162,7 +162,6 @@ const getStockSummary = async (ownerId, { startDate, endDate } = {}) => {
 
 	const matchStage = {
 		businessOwnerId: owner._id,
-		$or: [{ reportable: true }, { reportable: { $exists: false } }],
 	};
 	if (startDate || endDate) {
 		matchStage.createdAt = {};
@@ -219,7 +218,16 @@ const getStockSummary = async (ownerId, { startDate, endDate } = {}) => {
 		},
 		{
 			$group: {
-				_id: "$storageItemId",
+				_id: {
+					storageItemId: { $ifNull: ["$storageItemId", null] },
+					legacyItemName: {
+						$cond: [
+							{ $eq: [{ $ifNull: ["$storageItemId", null] }, null] },
+							"$itemName",
+							null,
+						],
+					},
+				},
 				itemName: { $last: "$itemName" },
 				unit: { $last: { $ifNull: ["$unit", ""] } },
 				totalAdded: {
@@ -248,13 +256,22 @@ const getStockSummary = async (ownerId, { startDate, endDate } = {}) => {
 				countDelete: {
 					$sum: { $cond: [{ $lt: ["$stockDelta", 0] }, 1, 0] },
 				},
+				changedFieldArrays: {
+					$push: { $ifNull: ["$changes.field", []] },
+				},
 				lastActivity: { $max: "$createdAt" },
 			},
 		},
 		{
 			$project: {
 				_id: 0,
-				storageItemId: { $toString: "$_id" },
+				storageItemId: {
+					$cond: [
+						{ $ne: ["$_id.storageItemId", null] },
+						{ $toString: "$_id.storageItemId" },
+						null,
+					],
+				},
 				itemName: 1,
 				unit: 1,
 				totalAdded: 1,
@@ -263,6 +280,13 @@ const getStockSummary = async (ownerId, { startDate, endDate } = {}) => {
 				countAdd: 1,
 				countUpdate: 1,
 				countDelete: 1,
+				changedFields: {
+					$reduce: {
+						input: "$changedFieldArrays",
+						initialValue: [],
+						in: { $setUnion: ["$$value", "$$this"] },
+					},
+				},
 				lastActivity: 1,
 			},
 		},

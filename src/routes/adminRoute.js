@@ -66,6 +66,11 @@ router.get(
 	adminController.getStockSummaryByBusinessOwner,
 );
 router.get(
+	"/business-owners/:ownerId/storage-items/stock-logs",
+	businessOwnerAccess,
+	adminController.getStockLogsByBusinessOwner,
+);
+router.get(
 	"/business-owners/:ownerId/storage-items/inventory-report",
 	businessOwnerAccess,
 	adminController.getInventoryReportByBusinessOwner,
