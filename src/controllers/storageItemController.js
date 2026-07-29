@@ -1,6 +1,7 @@
 "use strict";
 
 import * as storageItemService from "../services/storageItemService.js";
+import * as inventoryAnalyticsService from "../services/inventoryAnalyticsService.js";
 import InvoicesInService from "../services/invoicesInService.js";
 import { StatusCodes } from "http-status-codes";
 import SyncHistory from "../models/SyncHistory.js";
@@ -1141,6 +1142,61 @@ const getStockSummary = async (req, res, next) => {
 	}
 };
 
+const getInventoryReportForOwner = async (req, res, next) => {
+	try {
+		const owner = await getBusinessOwnerByUserId(req.user.userId);
+		if (!owner) {
+			return res
+				.status(StatusCodes.NOT_FOUND)
+				.json({ message: "Business owner profile not found" });
+		}
+		const result = await inventoryAnalyticsService.getInventoryReport(
+			owner._id,
+			req.query,
+		);
+		res.status(StatusCodes.OK).json(result);
+	} catch (error) {
+		next(error);
+	}
+};
+
+const getStockSummaryForOwner = async (req, res, next) => {
+	try {
+		const owner = await getBusinessOwnerByUserId(req.user.userId);
+		if (!owner) {
+			return res
+				.status(StatusCodes.NOT_FOUND)
+				.json({ message: "Business owner profile not found" });
+		}
+		const result = await inventoryAnalyticsService.getStockSummary(
+			owner._id,
+			req.query,
+		);
+		res.status(StatusCodes.OK).json(result);
+	} catch (error) {
+		next(error);
+	}
+};
+
+const upsertOpeningBalanceForOwner = async (req, res, next) => {
+	try {
+		const owner = await getBusinessOwnerByUserId(req.user.userId);
+		if (!owner) {
+			return res
+				.status(StatusCodes.NOT_FOUND)
+				.json({ message: "Business owner profile not found" });
+		}
+		const result = await inventoryAnalyticsService.upsertOpeningBalance(
+			owner._id,
+			req.user.userId,
+			req.body,
+		);
+		res.status(StatusCodes.OK).json(result);
+	} catch (error) {
+		next(error);
+	}
+};
+
 const mergeItems = async (req, res, next) => {
 	try {
 		const userId = req.user.userId;
@@ -1236,9 +1292,9 @@ export {
 	syncStorageItemsForOwner,
 	getSyncHistory,
 	getStockLogs,
-	getStockSummary,
-	getInventoryReport,
-	upsertOpeningBalance,
+	getStockSummaryForOwner as getStockSummary,
+	getInventoryReportForOwner as getInventoryReport,
+	upsertOpeningBalanceForOwner as upsertOpeningBalance,
 	genTypeItem,
 	updateUnitConversion,
 	getIdByName,

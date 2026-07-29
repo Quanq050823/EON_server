@@ -51,6 +51,26 @@ router.get(
 	adminController.getStorageItemsByBusinessOwner,
 );
 router.get(
+	"/business-owners/:ownerId/storage-items/synced",
+	businessOwnerAccess,
+	adminController.getSyncedStorageItemsByBusinessOwner,
+);
+router.get(
+	"/business-owners/:ownerId/storage-items/stock-summary",
+	businessOwnerAccess,
+	adminController.getStockSummaryByBusinessOwner,
+);
+router.get(
+	"/business-owners/:ownerId/storage-items/inventory-report",
+	businessOwnerAccess,
+	adminController.getInventoryReportByBusinessOwner,
+);
+router.post(
+	"/business-owners/:ownerId/storage-items/opening-balance",
+	businessOwnerAccess,
+	adminController.upsertOpeningBalanceByBusinessOwner,
+);
+router.get(
 	"/business-owners/:ownerId/storage-items/unclassified",
 	businessOwnerAccess,
 	adminController.getUnclassifiedStorageItemsByBusinessOwner,

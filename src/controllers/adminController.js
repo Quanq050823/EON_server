@@ -1,6 +1,7 @@
 "use strict";
 
 import * as adminService from "../services/adminService.js";
+import * as inventoryAnalyticsService from "../services/inventoryAnalyticsService.js";
 import { StatusCodes } from "http-status-codes";
 
 // User Management
@@ -288,6 +289,68 @@ const getTaxStatisticsByBusinessOwner = async (req, res, next) => {
 	}
 };
 
+const getSyncedStorageItemsByBusinessOwner = async (req, res, next) => {
+	try {
+		const ownerId = await adminService.resolveAccessibleBusinessOwnerId(
+			req.user,
+			req.params.ownerId,
+		);
+		const result = await inventoryAnalyticsService.getSyncedItems(ownerId);
+		res.status(StatusCodes.OK).json(result);
+	} catch (err) {
+		next(err);
+	}
+};
+
+const getStockSummaryByBusinessOwner = async (req, res, next) => {
+	try {
+		const ownerId = await adminService.resolveAccessibleBusinessOwnerId(
+			req.user,
+			req.params.ownerId,
+		);
+		const result = await inventoryAnalyticsService.getStockSummary(
+			ownerId,
+			req.query,
+		);
+		res.status(StatusCodes.OK).json(result);
+	} catch (err) {
+		next(err);
+	}
+};
+
+const getInventoryReportByBusinessOwner = async (req, res, next) => {
+	try {
+		const ownerId = await adminService.resolveAccessibleBusinessOwnerId(
+			req.user,
+			req.params.ownerId,
+		);
+		const result = await inventoryAnalyticsService.getInventoryReport(
+			ownerId,
+			req.query,
+		);
+		res.status(StatusCodes.OK).json(result);
+	} catch (err) {
+		next(err);
+	}
+};
+
+const upsertOpeningBalanceByBusinessOwner = async (req, res, next) => {
+	try {
+		const ownerId = await adminService.resolveAccessibleBusinessOwnerId(
+			req.user,
+			req.params.ownerId,
+		);
+		const result = await inventoryAnalyticsService.upsertOpeningBalance(
+			ownerId,
+			req.user.userId,
+			req.body,
+		);
+		res.status(StatusCodes.OK).json(result);
+	} catch (err) {
+		next(err);
+	}
+};
+
 const getUnclassifiedStorageItemsByBusinessOwner = async (req, res, next) => {
 	try {
 		const ownerId = await adminService.resolveAccessibleBusinessOwnerId(
@@ -427,6 +490,10 @@ export {
 	getOutputInvoicesByBusinessOwner,
 	// Storage Management
 	getStorageItemsByBusinessOwner,
+	getSyncedStorageItemsByBusinessOwner,
+	getStockSummaryByBusinessOwner,
+	getInventoryReportByBusinessOwner,
+	upsertOpeningBalanceByBusinessOwner,
 	getUnclassifiedStorageItemsByBusinessOwner,
 	classifyStorageItemByBusinessOwner,
 	updateStorageItemConversionByBusinessOwner,
