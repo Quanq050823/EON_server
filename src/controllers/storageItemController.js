@@ -2,6 +2,7 @@
 
 import * as storageItemService from "../services/storageItemService.js";
 import * as inventoryAnalyticsService from "../services/inventoryAnalyticsService.js";
+import * as syncHistoryService from "../services/syncHistoryService.js";
 import InvoicesInService from "../services/invoicesInService.js";
 import { StatusCodes } from "http-status-codes";
 import SyncHistory from "../models/SyncHistory.js";
@@ -1254,26 +1255,8 @@ const getSyncHistory = async (req, res, next) => {
 				.status(StatusCodes.NOT_FOUND)
 				.json({ message: "Business owner profile not found" });
 		}
-
-		const page = parseInt(req.query.page) || 1;
-		const limit = parseInt(req.query.limit) || 20;
-		const skip = (page - 1) * limit;
-
-		const [records, total] = await Promise.all([
-			SyncHistory.find({ businessOwnerId: owner._id })
-				.sort({ createdAt: -1 })
-				.skip(skip)
-				.limit(limit)
-				.lean(),
-			SyncHistory.countDocuments({ businessOwnerId: owner._id }),
-		]);
-
-		res.status(StatusCodes.OK).json({
-			data: records,
-			total,
-			page,
-			totalPages: Math.ceil(total / limit),
-		});
+		const result = await syncHistoryService.listByOwner(owner._id, req.query);
+		res.status(StatusCodes.OK).json(result);
 	} catch (error) {
 		next(error);
 	}

@@ -56,6 +56,11 @@ router.get(
 	adminController.getSyncedStorageItemsByBusinessOwner,
 );
 router.get(
+	"/business-owners/:ownerId/storage-items/sync-history",
+	businessOwnerAccess,
+	adminController.getSyncHistoryByBusinessOwner,
+);
+router.get(
 	"/business-owners/:ownerId/storage-items/stock-summary",
 	businessOwnerAccess,
 	adminController.getStockSummaryByBusinessOwner,

@@ -35,5 +35,7 @@ const SyncHistorySchema = new mongoose.Schema(
 	{ timestamps: true }
 );
 
+SyncHistorySchema.index({ businessOwnerId: 1, createdAt: -1 });
+
 const SyncHistory = mongoose.model("SyncHistory", SyncHistorySchema);
 export default SyncHistory;
